@@ -1,9 +1,14 @@
-export default class Module {
+/*export default */ class Module {
     constructor () {
         console.log("Module constructor")
+
+        this.defaults = {
+            defProp: "defProp",
+            defProp2: "defProp2"
+        }
     }
 
-    init () {
+    start () {
         console.log("module init")
     }
 
@@ -53,5 +58,45 @@ export default class Module {
         console.log("module private show")
     }
 
+    setConfig (config) {
+        console.log("module private loadConfig");
+        this.config = configMerge({}, this.defaults, config);
+    }
+
+    setData (moduleInfo) {
+        this.mInfo = moduleInfo;
+        this.name = moduleInfo.name;
+        this.id = moduleInfo.id;
+        this.index = moduleInfo.index;
+        this.hidden = moduleInfo.hiddenOnStartup;
+        this.position = moduleInfo.position;
+        this.classes = moduleInfo.classes;
+
+        this.setConfig(moduleInfo.config);
+    }
+
+}
+
+function configMerge (result) {
+	const stack = Array.prototype.slice.call(arguments, 1);
+	let item, key;
+
+	while (stack.length) {
+		item = stack.shift();
+		for (key in item) {
+			if (item.hasOwnProperty(key)) {
+				if (typeof result[key] === "object" && result[key] && Object.prototype.toString.call(result[key]) !== "[object Array]") {
+					if (typeof item[key] === "object" && item[key] !== null) {
+						result[key] = configMerge({}, result[key], item[key]);
+					} else {
+						result[key] = item[key];
+					}
+				} else {
+					result[key] = item[key];
+				}
+			}
+		}
+	}
+	return result;
 }
 

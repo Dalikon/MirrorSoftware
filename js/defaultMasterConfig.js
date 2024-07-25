@@ -32,6 +32,8 @@ const defaults = {
       "bathroom.js"
     ],
 
+    userFile: "",
+
 	modules: [
 		{
 			module: "updatenotification",

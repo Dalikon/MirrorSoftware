@@ -71,7 +71,9 @@ class Server {
                 }
             }
 
+            this.app.use("/modules", express.static("./modules"));
             this.app.use("/css", express.static("./css"));
+            this.app.use("/js", express.static("./js"));
 
             this.app.get("/", (req, res) => {
                 let html = fs.readFileSync(path.resolve('./index.html'), { encoding: "utf8" });
