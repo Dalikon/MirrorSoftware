@@ -29,7 +29,7 @@ const defaults = {
 
     // a list of configurations for different mirror clients
     clientConfigs: [
-      "bathroom.js"
+      "bathroom"
     ],
 
     userFile: "",

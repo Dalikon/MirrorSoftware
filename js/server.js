@@ -8,6 +8,9 @@ const ipfilter = require("express-ipfilter").IpFilter;
 const helmet = require("helmet");
 const socketio = require("socket.io");
 
+/*
+ * The
+ */
 class Server {
     constructor (config) {
         this.app = express();
@@ -18,14 +21,15 @@ class Server {
     }
 
     newHtml (confName) {
+        let mirrorName = confName + ".js"
         fs.readFile(path.resolve("./index.html"), 'utf8', (err, data) => {
             if (err) {
                 console.log(err.message)
             }
 
-            const newFile = data.replace("#CLIENTCONFIG#", confName)
-            console.log("./configs/" + confName.slice(0,-3) + "/index.html")
-            fs.writeFile("./configs/" + confName.slice(0,-3) + "/index.html", newFile, 'utf8', (err) => {if(err) console.log(err.message)})
+            const newFile = data.replace("#CLIENTCONFIG#", mirrorName)
+            console.log("./configs/" + confName + "/index.html")
+            fs.writeFile("./configs/" + confName + "/index.html", newFile, 'utf8', (err) => {if(err) console.log(err.message)})
         });
     }
 
@@ -61,16 +65,17 @@ class Server {
 
             this.server.listen(this.port, this.config.address || "localhost");
 
+
             for (const conf of this.config.clientConfigs) {
-                let confName = conf.slice(0, -3);
-                if (fs.existsSync(path.resolve("./configs") + "/" + confName + "/" + conf)){
-                    if (!fs.existsSync(path.resolve("./configs") + "/" + confName + "/index.html")) {
+                if (fs.existsSync(path.resolve("./configs") + "/" + conf + "/" + conf + ".js")){
+                    if (!fs.existsSync(path.resolve("./configs") + "/" + conf + "/index.html")) {
                         this.newHtml(conf);
                     }
-                    this.app.use("/" + confName, express.static(path.resolve("./configs/" + confName)));
+                    this.app.use("/" + conf, express.static(path.resolve("./configs/" + conf)));
                 }
             }
 
+            this.app.use("/configs", express.static("./configs"));
             this.app.use("/modules", express.static("./modules"));
             this.app.use("/css", express.static("./css"));
             this.app.use("/js", express.static("./js"));
