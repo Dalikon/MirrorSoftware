@@ -21,6 +21,7 @@ class Core {
         this.defaults = require('./defaultMasterConfig')
         this.config = this.defaults
         this.rootDir = __dirname.slice(0,-3);
+        this.moduleHelpers = [];
     }
 
     /*
@@ -69,7 +70,7 @@ class Core {
 
     /*
      * Goes through all modules defined in all client and user configs
-     * and creates an array of all unique modules defined in them
+     * and creates an array of all unique modules NAMES defined in them
      */
     differentModules () {
         let diffs = []
@@ -81,9 +82,7 @@ class Core {
                 }
             }
 
-            console.log("============");
             for (let user of this.allClients[client].usersSpecific) {
-                //console.log(user.data);
                 for (let userModule of user.data.modules) {
                     if (!diffs.includes(userModule.module)) {
                         diffs.push(userModule.module)
@@ -110,12 +109,42 @@ class Core {
         this.diffModules = this.differentModules();
 
         //start the helper if there is any
+        for (module of diffModules) {
+            let moduleFile = `${this.rootDir}/modules/${module}/${module}.js`
+            try {
+                fs.accessSync(moduleFile, fs.R_OK);
+            } catch (e) {
+                console.log(`No ${moduleFile} found for module ${module}.`)
+            }
+
+            let helperPath = `${this.rootDir}/modules/${module}/helper.js`;
+            let helperExists = true;
+            try {
+                fs.accessSync(helperPath, fs.R_OK);
+            } catch (e) {
+                helperExists = false;
+                console.log(`No helper found for module ${module}`);
+            }
+
+            if (helperExists) {
+                const Helper = require(helperPath);
+                let helper = new Helper();
+
+                helper.setName(module);
+                helper.setPath(path.resolve(`${this.rootDir}/modules/${module}`))
+                this.moduleHelpers.push(helper);
+
+                helper.loaded();
+            }
+        }
     }
 
     /*
-     *
+     * Checks master and client configs and automaticaly prepare for usage
      */
     checkMirrorConfigs () {
+        //check the master config
+
         let clients = this.config.clientConfigs;
         for (let client of clients) {
             let folder = `./configs/${client}/`;
@@ -140,6 +169,7 @@ class Core {
             //folder exists
             //mirror.js exists (else create it, it is all the same file just renamed)
         this.checkMirrorConfigs();
+
         //load modules
         this.loadModules();
         let httpServer = new Server(this.config);
