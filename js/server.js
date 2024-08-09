@@ -9,7 +9,7 @@ const helmet = require("helmet");
 const socketio = require("socket.io");
 
 /*
- * The
+ * Class representing a server that serves all files necessery to run a mirror client
  */
 class Server {
     constructor (config) {
@@ -45,16 +45,12 @@ class Server {
                 this.server = http.Server(this.app);
             }
 
-            /*
-             * move to backend
-            const io = socketio(server, {
+            this.io = socketio(this.server, {
                 cors: {
                     origin: /.*$/,
                     credentials: true
                 },
-                allowEIO3: true
-            })
-            */
+            });
 
             this.server.on("connection", (socket) => {
                 this.serverSockets.add(socket);
@@ -87,7 +83,8 @@ class Server {
 
             this.server.on("listening", () => {
                 resolve({
-                    testik: "its running"
+                    app: this.app,
+                    io: this.io
                 });
             });
         });

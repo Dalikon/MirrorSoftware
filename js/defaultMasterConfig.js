@@ -6,7 +6,7 @@ let port = 8080;
 const defaults = {
 	address: address,
 	port: port,
-	basePath: "/",
+	basePath: "/home/dala/Documents/HA-Mirrors/",
 	ipWhitelist: ["127.0.0.1", "::ffff:127.0.0.1", "::1"],
     https: false,
 

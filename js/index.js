@@ -6,6 +6,7 @@ const express = require("express");
 const socket = require("socket.io");
 
 const Server = require('./server');
+const Helper = require('./helper');
 
 //make array of all mirrors and their modules
 //check for module files
@@ -75,7 +76,7 @@ class Core {
     differentModules () {
         let diffs = []
         for (let client in this.allClients) {
-            console.log(this.allClients[client].defaultModules);
+           // console.log(this.allClients[client].defaultModules);
             for (let module of this.allClients[client].defaultModules) {
                 if (!diffs.includes(module.module)) {
                     diffs.push(module.module);
@@ -92,8 +93,8 @@ class Core {
         }
 
 
-        console.log("======================");
-        console.log(diffs);
+       // console.log("======================");
+        //console.log(diffs);
 
         return diffs;
     }
@@ -109,7 +110,7 @@ class Core {
         this.diffModules = this.differentModules();
 
         //start the helper if there is any
-        for (module of diffModules) {
+        for (module of this.diffModules) {
             let moduleFile = `${this.rootDir}/modules/${module}/${module}.js`
             try {
                 fs.accessSync(moduleFile, fs.R_OK);
@@ -127,7 +128,7 @@ class Core {
             }
 
             if (helperExists) {
-                const Helper = require(helperPath);
+                const Helper = require(helperPath.slice(0,-3));
                 let helper = new Helper();
 
                 helper.setName(module);
@@ -161,6 +162,7 @@ class Core {
         }
     }
 
+
     /*
      * Main method to kick off the whole system
      */
@@ -172,8 +174,32 @@ class Core {
 
         //load modules
         this.loadModules();
-        let httpServer = new Server(this.config);
-        await httpServer.open();
+
+        this.httpServer = new Server(this.config);
+
+        const apps = await this.httpServer.open();
+        this.expressApp = apps.app;
+        this.socketio = apps.io;
+
+        const helperPromises = [];
+        for (let moduleHelper of this.moduleHelpers) {
+            moduleHelper.setExpressApp(this.expressApp);
+            moduleHelper.setSocketIO(this.socketio);
+
+            try {
+                helperPromises.push(moduleHelper.start());
+            } catch (error) {
+                console.error(`Error when starting helper for module ${moduleHelper.name}: ${error}`);
+            }
+        }
+
+        const results = await Promise.allSettled(helperPromises);
+
+        results.forEach((result) => {
+            if (result.status === "rejected") {
+                console.log(result.reason);
+            }
+        });
     }
 
 }

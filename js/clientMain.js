@@ -61,7 +61,7 @@ class Client {
                 hiddenOnStartup: moduleConfig.hiddenOnStartup,
                 header: moduleConfig.header,
                 config: moduleConfig.config,
-                classes: moduleConfig.classes !== "undefined" ? `${moduleConfig.classes} ${moduleName}` : moduleName
+                classes: (typeof moduleConfig.classes !== 'undefined' ? `${moduleConfig.classes} ${moduleName}` : moduleName)
             });
             console.log("module loaded")
         });
@@ -122,6 +122,19 @@ class Client {
         })
     }
 
+    sendNotification (notification, payload, sender, sendTo) {
+        for (const module of this.moduleObjs) {
+            if (module !== sender && (!sendTo || module === sendTo)) {
+                module.notificationReceived(notification, payload, sender);
+            }
+        }
+    }
+
+    async startModules () {
+        for (const module of this.moduleObjs) {
+            module.start();
+        }
+    }
 
     async init () {
         console.log("fetching config")
@@ -130,6 +143,8 @@ class Client {
         await this.loadModules();
 
         this.createDomObjects();
+
+        await this.startModules();
     }
 
 }

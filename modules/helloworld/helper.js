@@ -1,45 +1,9 @@
-class Helper {
-    constructor () {
+const Helper = require('../../js/helper')
 
-    }
-
-    init (){
-
-    }
-
+class helloworldHelper extends Helper {
     loaded () {
-
-    }
-
-    start () {
-
-    }
-
-    stop () {
-
-    }
-
-    socketNotificationReceived (notification, payload) {
-
-    }
-
-    sendSocketNotification (notification, payload) {
-
-    }
-
-    setName (name) {
-
-    }
-
-    setPath (path) {
-
-    }
-
-    setExpressApp (app) {
-
-    }
-
-    setSocketIO (io) {
-
+        console.log("this is me HelloWorld!")
     }
 }
+
+module.exports = helloworldHelper;

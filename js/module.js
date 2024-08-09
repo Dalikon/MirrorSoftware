@@ -2,6 +2,7 @@
     constructor () {
         console.log("Module constructor")
 
+
         this.defaults = {
             defProp: "defProp",
             defProp2: "defProp2"
@@ -21,11 +22,15 @@
     }
 
     notificationReceived (notification, payload, sender) {
-        console.log("module notificationReceived")
+        if (sender) {
+            console.log(this.name + " received a module notification: " + notification + " from sender: " + sender.name + " with payload: " + payload);
+		} else {
+			console.log(this.name + " received a system notification: " + notification + " with payload: " + payload);
+		}
     }
 
     socketNotificationReceived (notification, payload) {
-        console.log("module socketNotificationReceived")
+        console.log(`${this.name} received a socket notification: ${notification} - Payload: ${payload}`);
     }
 
     suspend () {
@@ -38,8 +43,14 @@
 
     //Methods below shoud not need subclassing
 
-    socket () {
-        console.log("module private socket")
+    createSocket () {
+        if (typeof this.socket === "undefined") {
+			this.socket = new ClientSocket(this.name);
+		}
+
+		this.socket.setNotificationCallback((notification, payload) => {
+			this.socketNotificationReceived(notification, payload);
+		});
     }
 
     updateDom(updateOptions) {
@@ -48,6 +59,12 @@
 
     sendSocketNotification(notification, payload) {
         console.log("module private sendSocketNotification")
+        this.socket.sendNotification(notification, payload);
+    }
+
+    sendNotification (notification,  payload) {
+        console.log("module sending client notification")
+        client.sendNotification(notification, payload, this);
     }
 
     hide (speed, callback, options={}) {
@@ -73,6 +90,7 @@
         this.classes = moduleInfo.classes;
 
         this.setConfig(moduleInfo.config);
+        this.createSocket();
     }
 
 }
