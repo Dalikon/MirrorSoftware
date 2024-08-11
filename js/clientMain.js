@@ -20,6 +20,105 @@ class Client {
         this.modulesInfo = [];
         this.loadedModules = [];
         this.users = [];
+	    this.modulePositions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
+    }
+
+    selectPosition (position) {
+        const posClasses = position.replace("_", " ");
+        const posDiv = document.getElementsByClassName(posClasses);
+        if (posDiv.length > 0) {
+            const wrapper = posDiv[0].getElementsByClassName("container");
+            if (wrapper.length > 0) {
+                return wrapper[0];
+            }
+        }
+    }
+
+    /**
+	 * Checks for all positions if it has visible content.
+	 * If not, if will hide the position to prevent unwanted margins.
+	 * This method should be called by the show and hide methods.
+	 *
+	 * Example:
+	 * If the top_bar only contains the update notification. And no update is available,
+	 * the update notification is hidden. The top bar still occupies space making for
+	 * an ugly top margin. By using this function, the top bar will be hidden if the
+	 * update notification is not visible.
+	 */
+
+	updateWrapperStates () {
+        this.modulePositions.forEach((position) => {
+			const wrapper = this.selectPosition(position);
+			const moduleWrappers = wrapper.getElementsByClassName("module");
+
+			let showWrapper = false;
+			Array.prototype.forEach.call(moduleWrappers, function (moduleWrapper) {
+				if (moduleWrapper.style.position === "" || moduleWrapper.style.position === "static") {
+					showWrapper = true;
+				}
+			});
+
+			wrapper.style.display = showWrapper ? "block" : "none";
+		});
+	}
+
+    hideModule (module, speed, callback, options = {}) {
+        console.log(`Hiding module ${module.name} with id ${module.id}`)
+        const moduleWrapper = document.getElementById(module.id);
+        if (moduleWrapper !== null) {
+
+            let haveAnimateName = null;
+            if (haveAnimateName) {
+
+            } else {
+                moduleWrapper.style.transition = `opacity ${speed / 1000}s`;
+                moduleWrapper.style.opacity = 0;
+                moduleWrapper.classList.add("hidden");
+                module.showHideTimer = setTimeout(() => {
+                    moduleWrapper.style.position = "fixed";
+                    this.updateWrapperStates();
+                    if (typeof callback === "function") {
+                        callback();
+                    }
+                }, speed);
+            }
+        } else {
+            if (typeof callback === "function") {
+                callback();
+            }
+        }
+    }
+
+    showModule (module, speed, callback, options = {}) {
+        console.log(`Showing module ${module.name} with id ${module.id}`)
+        const moduleWrapper = document.getElementById(module.id);
+        if (moduleWrapper !== null) {
+            let haveAnimateName = null;
+            if (haveAnimateName) {
+
+            } else {
+                moduleWrapper.style.transition = `opacity ${speed / 1000}s`;
+                moduleWrapper.style.position = "static";
+                moduleWrapper.classList.remove("hidden");
+
+                this.updateWrapperStates();
+                const dummy = moduleWrapper.parentElement.parentElement.offsetHeight;
+
+                moduleWrapper.style.opacity = 1;
+
+                module.showHideTimer = setTimeout(() => {
+                    if (typeof callback === "function") {
+                        callback();
+                    }
+                }, speed);
+            }
+        } else {
+            if (typeof callback === "function") {
+                callback();
+            }
+        }
+
+
     }
 
     async loadModuleFile (url) {
@@ -100,23 +199,14 @@ class Client {
 
     }
 
-    selectPosition (position) {
-        const posClasses = position.replace("_", " ");
-        const posDiv = document.getElementsByClassName(posClasses);
-        if (posDiv.length > 0) {
-            const wrapper = posDiv[0].getElementsByClassName("container");
-            if (wrapper.length > 0) {
-                return wrapper[0];
-            }
-        }
-    }
 
     // create dom objects for modules with configured position
     createDomObjects () {
         this.moduleObjs.forEach((moduleObj, index) => {
             let newWrapper = moduleObj.createDom();
             console.log(moduleObj.classes)
-            newWrapper.className = moduleObj.classes;
+            newWrapper.className = moduleObj.classes + " module";
+            newWrapper.id = moduleObj.id;
             this.selectPosition(moduleObj.position).appendChild(newWrapper);
             //document.body.appendChild(newWrapper);
         })

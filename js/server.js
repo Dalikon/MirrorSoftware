@@ -20,6 +20,10 @@ class Server {
         this.config = config
     }
 
+    /*
+     * Creates new html file for a client if the defined folder does not have one
+     * @param {string} confName name of the configuration to place into the html tamplate (it is the client name)
+     */
     newHtml (confName) {
         let mirrorName = confName + ".js"
         fs.readFile(path.resolve("./index.html"), 'utf8', (err, data) => {
@@ -33,8 +37,13 @@ class Server {
         });
     }
 
+    /*
+     * Main server method. It creates express and socketio objects
+     * @returns {Promise} Promise that resolves into an object of the express app object and socket io object
+     */
     open () {
         return new Promise((resolve) => {
+            console.log("Starting express server")
             if (this.config.https) {
                 const options = {
                     key: fs.readFileSync(config.httpsPrivateKey),
@@ -61,7 +70,7 @@ class Server {
 
             this.server.listen(this.port, this.config.address || "localhost");
 
-
+            //for every defined client, create html file and an endpoint
             for (const conf of this.config.clientConfigs) {
                 if (fs.existsSync(path.resolve("./configs") + "/" + conf + "/" + conf + ".js")){
                     if (!fs.existsSync(path.resolve("./configs") + "/" + conf + "/index.html")) {
@@ -76,6 +85,7 @@ class Server {
             this.app.use("/css", express.static("./css"));
             this.app.use("/js", express.static("./js"));
 
+            //TODO Create a default page (maybe basic controlls and stats?)
             this.app.get("/", (req, res) => {
                 let html = fs.readFileSync(path.resolve('./index.html'), { encoding: "utf8" });
                 res.send(html);

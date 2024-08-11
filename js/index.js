@@ -1,17 +1,8 @@
-
 const fs = require("node:fs");
 const path = require("node:path");
 const envsub = require("envsub");
-const express = require("express");
-const socket = require("socket.io");
 
 const Server = require('./server');
-const Helper = require('./helper');
-
-//make array of all mirrors and their modules
-//check for module files
-    //if no main file, remove it from config
-    //if helper exists, start it
 
 /*
  * The main program class.
@@ -20,7 +11,11 @@ const Helper = require('./helper');
 class Core {
     constructor () {
         this.defaults = require('./defaultMasterConfig')
+
+        //TODO load not user defined config and merge with defaults
         this.config = this.defaults
+
+        //root dir of the project
         this.rootDir = __dirname.slice(0,-3);
         this.moduleHelpers = [];
     }
@@ -28,12 +23,16 @@ class Core {
     /*
      * Creates an array of objects representing an user for a conctrete client
      * userData property of said object is the whole config of a specific user
+     * @param {string} client name of the client mirror for which to gether users for.
+     * @returns {array} array of objects of users, first property is the path for the client specific user conf and second is the conf data itself
      */
     getUsersPerClient (client) {
         let users = [];
         let folder = `${this.rootDir}/configs/${client}/users`;
         let files = fs.readdirSync(folder, { withFileTypes: true })
 
+        //every file in the client/users dir should be an user config
+        //maybe place a check that there are no other files?
         for (const file of files) {
             let filePath = path.join(folder, file.name);
             if (file.isFile() && path.extname(file.name) === '.json') {
@@ -48,8 +47,10 @@ class Core {
     /*
      * Creates an object that holds all modules defined in configs devided by the clients
      * next by default modules for the client and then by users for specific client
+     * @returns {Object} top level attributes are the client names, second level is an array of default client modules and users. The last level are user specific modules under every user.
      */
     createModuleArray () {
+        console.log("Searching for modules")
         let modulesInMirrors = {};
         for (let client of this.config.clientConfigs) {
             let jsonData;
@@ -72,11 +73,12 @@ class Core {
     /*
      * Goes through all modules defined in all client and user configs
      * and creates an array of all unique modules NAMES defined in them
+     * @returns {array} An array of all modules, that are defined in all configs across all clients and users and which are unique
      */
     differentModules () {
-        let diffs = []
+        console.log("Finding all unique modules")
+        let diffs = [];
         for (let client in this.allClients) {
-           // console.log(this.allClients[client].defaultModules);
             for (let module of this.allClients[client].defaultModules) {
                 if (!diffs.includes(module.module)) {
                     diffs.push(module.module);
@@ -91,11 +93,6 @@ class Core {
                 }
             }
         }
-
-
-       // console.log("======================");
-        //console.log(diffs);
-
         return diffs;
     }
 
@@ -103,9 +100,7 @@ class Core {
      * Loads all modules and starts needed helpers
      */
     loadModules () {
-        //createModuleArray
-        //check for module directory, core module file, helper
-
+        console.log("Loading modules")
         this.allClients = this.createModuleArray();
         this.diffModules = this.differentModules();
 
@@ -128,6 +123,7 @@ class Core {
             }
 
             if (helperExists) {
+                console.log(`Starting helper for module: ${module}`)
                 const Helper = require(helperPath.slice(0,-3));
                 let helper = new Helper();
 
@@ -144,18 +140,22 @@ class Core {
      * Checks master and client configs and automaticaly prepare for usage
      */
     checkMirrorConfigs () {
-        //check the master config
+        console.log("Checking if configs are correct");
+        //TODO check the master config
 
         let clients = this.config.clientConfigs;
         for (let client of clients) {
             let folder = `./configs/${client}/`;
             if (!fs.existsSync(path.resolve(folder))) {
-                console.error("No folder for defined client in config!")
+                //remove the user from confing object and go as usual (no harm done)
+                console.error("No folder for defined client in config!");
                 let index = this.config.clientConfigs.indexOf(client);
                 this.config.clientConfigs.splice(index,1);
             }
 
             if (!fs.existsSync(path.resolve(folder) + `${client}.js`)){
+                //this file is the same for all clients, it just loads the client json file dependant on the name
+                //thats why it is ok to just copy it there
                 let mirrorConf = client + ".js"
                 fs.copyFileSync(path.resolve('./js/mirror.js'), path.resolve(`./configs/${client}/${mirrorConf}`))
             }
@@ -167,14 +167,11 @@ class Core {
      * Main method to kick off the whole system
      */
     async start () {
-        //check mirrors config structure
-            //folder exists
-            //mirror.js exists (else create it, it is all the same file just renamed)
         this.checkMirrorConfigs();
 
-        //load modules
         this.loadModules();
 
+        //create the server aka express app and socketio and set the basic endpoints
         this.httpServer = new Server(this.config);
 
         const apps = await this.httpServer.open();
@@ -200,10 +197,9 @@ class Core {
                 console.log(result.reason);
             }
         });
+        console.log("All helpers started");
     }
 
 }
 
-let core = new Core().start()
-
-
+let core = new Core().start();
