@@ -17,6 +17,8 @@ class Core {
 
         //root dir of the project
         this.rootDir = __dirname.slice(0,-3);
+
+        //objects of the helpers aka backends for modules
         this.moduleHelpers = [];
     }
 
@@ -26,22 +28,20 @@ class Core {
      * @param {string} client name of the client mirror for which to gether users for.
      * @returns {array} array of objects of users, first property is the path for the client specific user conf and second is the conf data itself
      */
-    getUsersPerClient (client) {
-        let users = [];
+    getUsersPerClient (client, users) {
         let folder = `${this.rootDir}/configs/${client}/users`;
-        let files = fs.readdirSync(folder, { withFileTypes: true })
+        let userObjs = []
 
-        //every file in the client/users dir should be an user config
-        //maybe place a check that there are no other files?
-        for (const file of files) {
-            let filePath = path.join(folder, file.name);
-            if (file.isFile() && path.extname(file.name) === '.json') {
+        for (const user of users) {
+            let filePath = path.join(folder, user + ".json");
+            if (1) {
                 let data = fs.readFileSync(filePath, 'utf8');
                 let userData = JSON.parse(data);
-                users.push({path: filePath, data: userData});
+                userObjs.push({path: filePath, data: userData});
             }
         }
-        return users;
+
+        return userObjs;
     }
 
     /*
@@ -64,7 +64,7 @@ class Core {
             modulesInMirrors[client] = {};
             modulesInMirrors[client]['defaultModules'] = jsonData.defaultModules;
 
-            modulesInMirrors[client]['usersSpecific'] = this.getUsersPerClient(client);
+            modulesInMirrors[client]['usersSpecific'] = this.getUsersPerClient(client, jsonData.users);
 
             return modulesInMirrors;
         }
@@ -85,6 +85,8 @@ class Core {
                 }
             }
 
+            //TODO Do not diff every user by default.
+            //
             for (let user of this.allClients[client].usersSpecific) {
                 for (let userModule of user.data.modules) {
                     if (!diffs.includes(userModule.module)) {
@@ -154,6 +156,7 @@ class Core {
             }
 
             if (!fs.existsSync(path.resolve(folder) + `${client}.js`)){
+                console.log(`Creating .js file for client: ${client}`);
                 //this file is the same for all clients, it just loads the client json file dependant on the name
                 //thats why it is ok to just copy it there
                 let mirrorConf = client + ".js"

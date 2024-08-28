@@ -62,6 +62,7 @@ class Helper {
 
             socket.on("*", (notification, payload = {}) => {
                 if (notification !== "*") {
+                    //if (notification === "CLIENT_CONNECTED")
                     this.socketNotificationReceived(notification, payload);
                 }
             });

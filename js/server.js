@@ -37,6 +37,29 @@ class Server {
         });
     }
 
+    userServiceEndpoints () {
+        this.app.post("/get-user/:userName", (req, res) =>{
+            const userName = req.params.userName;
+            const fileName = `${userName}.json`;
+            let clientName = '';
+
+            req.on('data', chunk => {
+                clientName += chunk.toString();
+            });
+
+            let filePath = path.join(__dirname.slice(0,-3), "/configs", "/" + clientName, "/users", "/" + fileName);
+            if (!fs.existsSync(filePath)) {
+                filePath = path.join(__dirname.slice(0,-3), "/configs", "/users", "/" + fileName);
+                if (!fs.existsSync(filePath)) {
+                    res.status(404).json({error: 'User config not found'});
+                }
+            }
+
+            let userConfig = fs.readFileSync(filePath);
+            res.json(JSON.parse(userConfig));
+        });
+    }
+
     /*
      * Main server method. It creates express and socketio objects
      * @returns {Promise} Promise that resolves into an object of the express app object and socket io object
@@ -91,6 +114,8 @@ class Server {
                 res.send(html);
             });
 
+            this.userServiceEndpoints();
+
             this.server.on("listening", () => {
                 resolve({
                     app: this.app,
@@ -100,6 +125,9 @@ class Server {
         });
     }
 
+    /*
+     * When terminating the program
+     */
     close () {
         return new Promise((resolve) => {
             for (const socket of this.serverSockets.values()) {

@@ -14,15 +14,32 @@
 //starts all modules (and hide all user defined by default) by calling start() methods
 //call createDom() for all modules (maybe just the mirror default at the beginnig, and then all when the hide/show is implemented) and build the page
 
+/*
+ * This is the main class for the client side
+ */
 class Client {
     constructor () {
+        //An array of running modules
         this.moduleObjs = [];
+
+        //An array of information about the modules
         this.modulesInfo = [];
+
+        //An array of module names that are fetched from the server
         this.loadedModules = [];
+
+        //All users that have a conf file in the clients
         this.users = [];
+
+        //All possible positions on screen
 	    this.modulePositions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
     }
 
+    /*
+     * From a position name returns the wrapper for said position
+     * @param {string} position the wanted position
+     * @returns {dom object} the wrapper representing the position on screen
+     */
     selectPosition (position) {
         const posClasses = position.replace("_", " ");
         const posDiv = document.getElementsByClassName(posClasses);
@@ -45,7 +62,6 @@ class Client {
 	 * an ugly top margin. By using this function, the top bar will be hidden if the
 	 * update notification is not visible.
 	 */
-
 	updateWrapperStates () {
         this.modulePositions.forEach((position) => {
 			const wrapper = this.selectPosition(position);
@@ -62,6 +78,13 @@ class Client {
 		});
 	}
 
+    /*
+     * Hides the module from arguments
+     * @param {object} module the module to hide
+     * @param {number} speed number of ms for the hiding animation
+     * @param {function} callback a callback function that is called after the module is hidden
+     * @param {object} options an object containing optional options
+     */
     hideModule (module, speed, callback, options = {}) {
         console.log(`Hiding module ${module.name} with id ${module.id}`)
         const moduleWrapper = document.getElementById(module.id);
@@ -89,6 +112,13 @@ class Client {
         }
     }
 
+    /*
+     * Shows the hidden module from arguments
+     * @param {object} module the module to show
+     * @param {number} speed number of ms for the showing animation
+     * @param {function} callback a callback function that is called after the module is shown
+     * @param {object} options an object containing optional options
+     */
     showModule (module, speed, callback, options = {}) {
         console.log(`Showing module ${module.name} with id ${module.id}`)
         const moduleWrapper = document.getElementById(module.id);
@@ -121,6 +151,10 @@ class Client {
 
     }
 
+    /*
+     * Fetches a main module file from the server
+     * @param {string} url the url where the file should be hosted
+     */
     async loadModuleFile (url) {
         if (this.loadedModules.includes(url)) {
             return Promise.resolve()
@@ -143,6 +177,9 @@ class Client {
 		});
     }
 
+    /*
+     * For every module create an info object
+     */
     loadModulesInfo () {
         this.clientConfig.defaultModules.forEach((moduleConfig, index) => {
             let moduleName = moduleConfig.module;
@@ -162,56 +199,71 @@ class Client {
                 config: moduleConfig.config,
                 classes: (typeof moduleConfig.classes !== 'undefined' ? `${moduleConfig.classes} ${moduleName}` : moduleName)
             });
-            console.log("module loaded")
         });
 
     }
 
+    /*
+     * Pass info to a corresponding module
+     */
     passInfoToModule (moduleObj, moduleInfo) {
         moduleObj.setData(moduleInfo);
 
         //start methods to load other dependencies and suff like translations and styles
     }
 
+    /*
+     * Instanciate a module by it's info object
+     * @param {object} moduleInfo An info object representing the module
+     */
     async loadModule (moduleInfo) {
         const url = moduleInfo.folder + moduleInfo.file
 
-        console.log("loading module file " + url)
+        console.log("Fetching module file " + url)
         await this.loadModuleFile(url)
 
-        console.log(moduleInfo.name)
         const module = new window[moduleInfo.name]()
 
         this.passInfoToModule(module, moduleInfo)
 
         this.moduleObjs.push(module)
-        console.log("module loaded")
+        console.log(`Module loaded: ${module.name}`)
     }
 
+    /*
+     * Loading all modules
+     */
     async loadModules () {
-        console.log("loading modules")
+        console.log("Loading modules")
         this.loadModulesInfo();
 
         for (let moduleInfo of this.modulesInfo) {
-            console.log("loading module")
+            console.log(`Loading module: ${moduleInfo.name}`)
             await this.loadModule(moduleInfo);
         }
 
     }
 
 
-    // create dom objects for modules with configured position
+    /*
+     * Create dom objects for modules with configured position
+     */
     createDomObjects () {
         this.moduleObjs.forEach((moduleObj, index) => {
             let newWrapper = moduleObj.createDom();
-            console.log(moduleObj.classes)
             newWrapper.className = moduleObj.classes + " module";
             newWrapper.id = moduleObj.id;
             this.selectPosition(moduleObj.position).appendChild(newWrapper);
-            //document.body.appendChild(newWrapper);
         })
     }
 
+    /*
+     * Called by module ekvivalent method. Sends the notification to all modules except the sender or only to sendTo
+     * @param {string} notification The notification name
+     * @param {string} payload the payload of the notification
+     * @param {object} sender the module object that sends the notification
+     * @param {object} sendTo optional parameter that directs the notification to specific module
+     */
     sendNotification (notification, payload, sender, sendTo) {
         for (const module of this.moduleObjs) {
             if (module !== sender && (!sendTo || module === sendTo)) {
@@ -220,15 +272,24 @@ class Client {
         }
     }
 
+    /*
+     * Calls start method for all modules
+     */
     async startModules () {
         for (const module of this.moduleObjs) {
             module.start();
+            console.log(`Module started: ${module.name}`)
         }
+        this.sendNotification("ALL_MODULES_STARTED", "", {});
     }
 
+    /*
+     * Startup method
+     */
     async init () {
-        console.log("fetching config")
+        console.log("Fetching config")
         this.clientConfig = await fetchConfig();
+        CLIENT_NAME = this.clientConfig.name;
 
         await this.loadModules();
 
@@ -239,6 +300,8 @@ class Client {
 
 }
 
-console.log("client is starting")
+let CLIENT_NAME;
+
+console.log("Client is starting")
 let client = new Client();
 client.init();
