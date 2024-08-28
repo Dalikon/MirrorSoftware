@@ -1,0 +1,9 @@
+{
+    "address": "localhost",
+    "port": 8080,
+    "clientName": "",
+    "gpu": false,
+    "zoom": 1,
+    "electronOptions": "",
+    "https": false
+}

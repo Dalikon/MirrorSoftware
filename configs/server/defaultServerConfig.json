@@ -1,0 +1,20 @@
+{
+	"address": "localhost",
+	"port": "8080",
+	"ipWhitelist": ["127.0.0.1", "::ffff:127.0.0.1", "::1"],
+    "ipBlackList": [],
+    "https": false,
+    "httpHeaders": { "contentSecurityPolicy": false, "crossOriginOpenerPolicy": false, "crossOriginEmbedderPolicy": false, "crossOriginResourcePolicy": false, "originAgentCluster": false },
+	"checkServerInterval": 30000,
+
+	"logLevel": ["INFO", "LOG", "WARN", "ERROR"],
+	"reloadAfterServerRestart": false,
+
+	"language": "en",
+	"timeFormat": 24,
+	"units": "metric",
+	"zoom": 1,
+	"customCss": "css/custom.css",
+
+    "clientConfigs": []
+}

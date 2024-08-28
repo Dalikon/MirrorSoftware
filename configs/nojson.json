@@ -1,14 +1,11 @@
 {
-    "name": "bathroom",
-    "type": "mirror",
-    "users":["Dala", "Maku", "User"],
     "defaultModules": [
 		{
 			"module": "helloworld",
 			"position": "upper_third",
 			"classes": "large thin",
 			"config": {
-				"text": "DalaMirror"
+				"text": "MagicMirror²"
 			}
 		},
 		{

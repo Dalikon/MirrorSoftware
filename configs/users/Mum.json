@@ -1,0 +1,13 @@
+{
+    "name": "Mum",
+    "modules": [
+        {
+			"module": "helloworld",
+			"position": "upper_third",
+			"classes": "large thin",
+			"config": {
+				"text": "MagicMirror²"
+			}
+		}
+    ]
+}
