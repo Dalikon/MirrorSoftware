@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const envsub = require("envsub");
+const lodash = require('lodash');
 
 const Server = require('./server');
 
@@ -10,13 +11,19 @@ const Server = require('./server');
  */
 class Core {
     constructor () {
-        this.defaults = require('./defaultMasterConfig')
-
-        //TODO load not user defined config and merge with defaults
-        this.config = this.defaults
-
         //root dir of the project
         this.rootDir = __dirname.slice(0,-3);
+
+        this.defaults = JSON.parse(fs.readFileSync(this.rootDir + "/configs/server/defaultServerConfig.json"));
+
+        this.config = fs.readFileSync(this.rootDir + "/configs/server/serverConfig.json", 'utf8');
+
+        if(this.config){
+            this.config = lodash.merge({rootDir: this.rootDir}, this.defaults, JSON.parse(this.config));
+        } else {
+            console.warn("Warning: No custom server config found");
+            this.config = lodash.merge({rootDir: this.rootDir}, this.defaults);
+        }
 
         //objects of the helpers aka backends for modules
         this.moduleHelpers = [];
@@ -145,6 +152,7 @@ class Core {
         console.log("Checking if configs are correct");
         //TODO check the master config
 
+        let rootConfig = this.config.rootConf
         let clients = this.config.clientConfigs;
         for (let client of clients) {
             let folder = `./configs/${client}/`;
@@ -155,12 +163,23 @@ class Core {
                 this.config.clientConfigs.splice(index,1);
             }
 
-            if (!fs.existsSync(path.resolve(folder) + `${client}.js`)){
+            if (!fs.existsSync(path.resolve(folder) + `/${client}.js`)){
                 console.log(`Creating .js file for client: ${client}`);
                 //this file is the same for all clients, it just loads the client json file dependant on the name
                 //thats why it is ok to just copy it there
                 let mirrorConf = client + ".js"
                 fs.copyFileSync(path.resolve('./js/mirror.js'), path.resolve(`./configs/${client}/${mirrorConf}`))
+            }
+        }
+
+        let rootConfFolder = `./configs/${rootConfig}/`
+        if (fs.existsSync(path.resolve(rootConfFolder))) {
+            if (!fs.existsSync(path.resolve(rootConfFolder) + `/${rootConfig}.js`)){
+                console.log(`Creating .js file for client: ${rootConfig}`);
+                //this file is the same for all clients, it just loads the client json file dependant on the name
+                //thats why it is ok to just copy it there
+                let mirrorConf = rootConfig + ".js"
+                fs.copyFileSync(path.resolve('./js/mirror.js'), path.resolve(`./configs/${rootConfig}/${mirrorConf}`))
             }
         }
     }

@@ -42,35 +42,78 @@
 class UserService {
     constructor () {
         //if env variable if in SAVE or DELETE mode
-        this.userConfigStorage = []; //delete mode, saves the configs so it does not have to ask the server for the
-                                     //config every time it wants to switch to the user (aka array of userConfig objects)
-        this.userModulesStorage = []; //save mode, saves the moduleObj of the current user (aka an array of arrays of module objects)
+        if (clientConfig.userSwitchMode === "SAVE"){
+            this.userModulesStorage = []; //save mode, saves the moduleObj of the current user (aka an array of arrays of module objects)
+        } else {
+            if (clientConfig.userSwitchMode !== "DELETE") console.warn("Not existing option for userSwitchMode. Using default DELETE")
+            this.userConfigStorage = []; //delete mode, saves the configs so it does not have to ask the server for the
+                                         //config every time it wants to switch to the user (aka array of userConfig objects)
+        }
 
-        this.clientConfig = undefined; //default should be the base client config
-        this.activeUser = this.clientConfig.name;
+        //this.defaultConfig = {name: clientConfig.name, modules: clientConfig.defaultModules};
+        this.activeUser = clientConfig.name;
     }
 
     changeUser (userName) {
-        let user = this.findUser(userName)
+        if(clientConfig.userSwitchMode === "SAVE"){
+            changeUserSAVE(userName);
+        } else {
+            this.changeUserDELETE(userName);
+        }
     }
 
-    findUser (userName) {
-        let user = this.userStorage.find(user => user.name === userName);
+    changeUserSAVE (userName) {
+        let user = this.findUser(userName);
+
+    }
+
+    async changeUserDELETE (userName) {
+        let user = await this.findUserConfig(userName);
+
+        //empty the DOM
+        resetDOM();
+
+        //change the value of configInUse to user
+        configInUse = user;
+        console.log(`MODULES: ${client.moduleObjs}`)
+
+        //kickstart the loading process again by client.init()
+        console.log(`READY TO ROLL FOR USER ${user.name}`)
+        client.reload();
+    }
+
+    async findUserConfig (userName) {
+        let user;
+
+        if(clientConfig.userSwitchMode === "SAVE"){
+            user = this.userModulesStorage.find(user => user.name === userName);
+        } else {
+            if(userName === "default"){
+                user = {name: clientConfig.name, modules: clientConfig.defaultModules};
+            } else {
+                user = this.userConfigStorage.find(user => user.name === userName);
+            }
+        }
+
         if (!user) {
             //call the server using fetch to find and return said user.json file
             //primarly search for client specific, then general
-            fetch(`/get-user/${userName}`, {
+            const response = await fetch(`/get-user/${userName}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'text/plain'
                 },
-                body: CLIENT_NAME
-            }).then(response => response.json())
-                .then(data => {
-                    user = JSON.parse(data);
-                }).catch(error => {
-                    console.logg('Error: ', error);
-                });
+                body: `${clientConfig.name}`
+            });
+
+            const data = await response.json();
+            user = data;
+
+            if(clientConfig.userSwitchMode === "SAVE"){
+                this.userModulesStorage.push({name: user.name, moduleObjs: []});
+            } else {
+                this.userConfigStorage.push(user);
+            }
         }
         return user
     }

@@ -47,16 +47,19 @@ class Server {
                 clientName += chunk.toString();
             });
 
-            let filePath = path.join(__dirname.slice(0,-3), "/configs", "/" + clientName, "/users", "/" + fileName);
-            if (!fs.existsSync(filePath)) {
-                filePath = path.join(__dirname.slice(0,-3), "/configs", "/users", "/" + fileName);
+            req.on('end', () => {
+                let filePath = path.join(__dirname.slice(0,-3), "/configs", "/" + clientName, "/users", "/" + fileName);
                 if (!fs.existsSync(filePath)) {
-                    res.status(404).json({error: 'User config not found'});
+                    filePath = path.join(__dirname.slice(0,-3), "/configs", "/users", "/" + fileName);
+                    if (!fs.existsSync(filePath)) {
+                        res.status(404).json({error: 'User config not found'});
+                    }
                 }
-            }
 
-            let userConfig = fs.readFileSync(filePath);
-            res.json(JSON.parse(userConfig));
+                let userConfig = fs.readFileSync(filePath);
+                userConfig = JSON.parse(userConfig);
+                res.json(userConfig);
+            });
         });
     }
 
@@ -103,16 +106,23 @@ class Server {
                 }
             }
 
+            if (fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/" + this.config.rootConf + ".js")){
+                if (!fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/index.html")) {
+                    this.newHtml(this.config.rootConf);
+                }
+                this.app.use("/" , express.static(path.resolve("./configs/" + this.config.rootConf)));
+            }
+
             this.app.use("/configs", express.static("./configs"));
             this.app.use("/modules", express.static("./modules"));
             this.app.use("/css", express.static("./css"));
             this.app.use("/js", express.static("./js"));
 
             //TODO Create a default page (maybe basic controlls and stats?)
-            this.app.get("/", (req, res) => {
-                let html = fs.readFileSync(path.resolve('./index.html'), { encoding: "utf8" });
-                res.send(html);
-            });
+//            this.app.get("/", (req, res) => {
+  //              let html = fs.readFileSync(path.resolve('./index.html'), { encoding: "utf8" });
+    //            res.send(html);
+      //      });
 
             this.userServiceEndpoints();
 

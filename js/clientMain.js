@@ -181,7 +181,7 @@ class Client {
      * For every module create an info object
      */
     loadModulesInfo () {
-        this.clientConfig.defaultModules.forEach((moduleConfig, index) => {
+        configInUse.modules.forEach((moduleConfig, index) => {
             let moduleName = moduleConfig.module;
             let file = moduleName + ".js";
             let folder = "/modules/" + moduleName + "/";
@@ -287,10 +287,6 @@ class Client {
      * Startup method
      */
     async init () {
-        console.log("Fetching config")
-        this.clientConfig = await fetchConfig();
-        CLIENT_NAME = this.clientConfig.name;
-
         await this.loadModules();
 
         this.createDomObjects();
@@ -298,10 +294,48 @@ class Client {
         await this.startModules();
     }
 
+    async reload () {
+        //empty the client.moduleObj array
+        this.modulesInfo = [];
+
+        //maybe later implement the end method?
+        //suspend all modules (they are gonna be deleted)
+        for (let module of this.moduleObjs) {
+           module.suspend();
+        }
+
+        console.log(`MODULES: ${client.moduleObjs}`)
+        client.moduleObjs = [];
+
+        this.init();
+    }
 }
 
-let CLIENT_NAME;
+let client;
+let clientConfig;
+let userService;
+let configInUse;
+let freshRegions;
 
-console.log("Client is starting")
-let client = new Client();
-client.init();
+fetchConfig().then(conf => {
+    console.log("Getting config");
+    clientConfig = conf
+
+    configInUse = {name: clientConfig.name, modules: clientConfig.defaultModules};
+
+    console.log("UserService is starting");
+    userService = new UserService();
+
+    freshRegions = document.getElementById('all-regions').innerHTML;
+    console.log(freshRegions)
+
+    console.log("Client is starting");
+    client = new Client();
+    client.init();
+
+    //setInterval(() => {
+    //        setTimeout(() => {userService.changeUser(clientConfig.users[0])}, 15000);
+    //        setTimeout(() => {userService.changeUser("default")}, 30000);
+    //    }, 35000);
+});
+

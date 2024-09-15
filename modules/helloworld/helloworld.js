@@ -10,11 +10,22 @@ class helloworld extends Module {
         //this.sendSocketNotification("AHOJ", "SVETE");
         this.sendNotification("JEE", "EEJ");
         if (this.index === 2) {
-                setInterval(() => {
+                this.interval = setInterval(() => {
                     this.hide(1000,function(){});
                     setTimeout(() => {this.show(1000,function(){})},5000);
                 }, 7000);
         }
+    }
+
+    suspend () {
+        clearInterval(this.interval)
+    }
+
+    resume () {
+        this.interval = setInterval(() => {
+            this.hide(1000,function(){});
+            setTimeout(() => {this.show(1000,function(){})},5000);
+        }, 7000);
     }
 }
 

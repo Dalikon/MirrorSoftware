@@ -23,6 +23,7 @@ if (process.env.config){
 // Module to control application life.
 const eleApp = electron.app;
 
+
 // Per default electron is started with --disable-gpu flag, if you want the gpu enabled,
 // you must set the env var ELECTRON_ENABLE_GPU=1 on startup or set config option "gpu" to true.
 // See https://www.electronjs.org/docs/latest/tutorial/offscreen-rendering for more info.
