@@ -33,6 +33,8 @@ class Client {
 
         //All possible positions on screen
 	    this.modulePositions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
+
+        this.defModules = ["clock"];
     }
 
     /*
@@ -195,6 +197,7 @@ class Client {
                 file: file,
                 position: moduleConfig.position,
                 hiddenOnStartup: moduleConfig.hiddenOnStartup,
+                hidden: moduleConfig.hiddenOnStartup,
                 header: moduleConfig.header,
                 config: moduleConfig.config,
                 classes: (typeof moduleConfig.classes !== 'undefined' ? `${moduleConfig.classes} ${moduleName}` : moduleName)
@@ -217,12 +220,15 @@ class Client {
      * @param {object} moduleInfo An info object representing the module
      */
     async loadModule (moduleInfo) {
-        const url = moduleInfo.folder + moduleInfo.file
+        const url = moduleInfo.folder + moduleInfo.file;
 
-        console.log("Fetching module file " + url)
-        await this.loadModuleFile(url)
+        console.log("Fetching module file " + url);
+        await this.loadModuleFile(url);
 
-        const module = new window[moduleInfo.name]()
+        const module = new window[moduleInfo.name]();
+
+        let moduleDependencies = module.getScripts();
+
 
         this.passInfoToModule(module, moduleInfo)
 
@@ -255,6 +261,73 @@ class Client {
             newWrapper.id = moduleObj.id;
             this.selectPosition(moduleObj.position).appendChild(newWrapper);
         })
+    }
+
+    /*
+     *
+     */
+    moduleNeedsUpdate(module, newContent) {
+        const moduleWrapper = document.getElementById(module.id);
+        if (moduleWrapper === null){
+            return false;
+        }
+
+        let contentNeedsUpdate = false;
+
+        const tempContentWrapper = document.createElement("div");
+        tempContentWrapper.appendChild(newContent);
+        //console.log(moduleWrapper[0])
+        contentNeedsUpdate = tempContentWrapper.innerHTML !== moduleWrapper.innerHTML
+
+        return contentNeedsUpdate;
+    }
+
+    /*
+     *
+     */
+    updateModuleContent (module, newContent) {
+        let moduleWrapper = document.getElementById(module.id)
+        if(moduleWrapper === null){
+            return;
+        }
+        moduleWrapper.innerHTML = "";
+        moduleWrapper.appendChild(newContent);
+    }
+
+    /*
+     *
+     */
+    updateDomWithContent (module, newContent) {
+        if (module.hidden) {
+            this.updateModuleContent(module);
+            resolve();
+            return;
+        }
+
+        if(!this.moduleNeedsUpdate(module, newContent)) {
+            resolve();
+            return;
+        }
+
+        this.updateModuleContent(module, newContent);
+    }
+
+    /*
+     *
+     */
+    updateDom (module, updateOptions) {
+        let newContentPromise = module.createDom();
+
+        if (!(newContentPromise instanceof Promise)) {
+				// convert to a promise if not already one to avoid if/else's everywhere
+				newContentPromise = Promise.resolve(newContentPromise);
+		}
+
+        newContentPromise.then(function (newContent) {
+            const updatePromise = this.updateDomWithContent(module, newContent);
+
+            //updatePromise.then(resolve).catch((error) => console.error(error));
+        }.bind(this)).catch((error) => console.error(error));
     }
 
     /*

@@ -81,7 +81,8 @@ class Module {
      * @param {number|object} [updataOptions] specifics of the update
      */
     updateDom(updateOptions) {
-        console.log("module private updateDom")
+        //console.log("module private updatedom")
+        client.updateDom(this, updateOptions);
     }
 
     /*
@@ -151,6 +152,7 @@ class Module {
      * @param {object} moduleInfo object containing all info about this module instance
      */
     setData (moduleInfo) {
+        this.data = {}
         this.mInfo = moduleInfo;
         this.name = moduleInfo.name;
         this.id = moduleInfo.id;
@@ -158,6 +160,7 @@ class Module {
         this.hidden = moduleInfo.hiddenOnStartup;
         this.position = moduleInfo.position;
         this.classes = moduleInfo.classes;
+        this.data.path = moduleInfo.folder;
 
         this.setConfig(moduleInfo.config);
         this.createSocket();
