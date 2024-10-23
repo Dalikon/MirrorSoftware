@@ -1,8 +1,13 @@
 {
     "name": "bathroom",
     "type": "mirror",
+    "userSwitchMode": "DELETE",
     "users":["Dala", "Maku", "User"],
     "defaultModules": [
+        {
+			"module": "clock",
+			"position": "top_left"
+		},
 		{
 			"module": "helloworld",
 			"position": "upper_third",

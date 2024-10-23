@@ -5,11 +5,11 @@ async function fetchConfig(name = "") {
     if (name === "") {
         console.log("Fetching mirror specific config")
         // Construct the URL to the JSON file
-        jsonUrl = `/${clientName}/${clientName}.json`;
+        jsonUrl = `${clientName}.json`;
     } else {
         console.log(`Fetching user config: ${name}.json`)
         const userName = name;
-        jsonUrl = `/${clientName}/users/${userName}.json`;
+        jsonUrl = `/users/${userName}.json`;
     }
 
     // Fetch and parse the JSON file

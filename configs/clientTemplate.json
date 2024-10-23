@@ -1,6 +1,7 @@
 {
     "name": "",
     "type": "",
+    "userSwitchMode": "DELETE",
     "users": [],
     "defaultModules": []
 }
