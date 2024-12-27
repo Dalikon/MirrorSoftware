@@ -8,11 +8,11 @@ const ipfilter = require("express-ipfilter").IpFilter;
 const helmet = require("helmet");
 const socketio = require("socket.io");
 
-/*
+/**
  * Class representing a server that serves all files necessery to run a mirror client
  */
 class Server {
-    constructor (config) {
+    constructor(config) {
         this.app = express();
         this.port = config.port || 8080;
         this.serverSockets = new Set();
@@ -20,11 +20,11 @@ class Server {
         this.config = config
     }
 
-    /*
+    /**
      * Creates new html file for a client if the defined folder does not have one
-     * @param {string} confName name of the configuration to place into the html tamplate (it is the client name)
+     * @param {string} - confName name of the configuration to place into the html tamplate (it is the client name)
      */
-    newHtml (confName) {
+    newHtml(confName) {
         let mirrorName = confName + ".js"
         fs.readFile(path.resolve("./index.html"), 'utf8', (err, data) => {
             if (err) {
@@ -33,12 +33,12 @@ class Server {
 
             const newFile = data.replace("#CLIENTCONFIG#", mirrorName)
             console.log("./configs/" + confName + "/index.html")
-            fs.writeFile("./configs/" + confName + "/index.html", newFile, 'utf8', (err) => {if(err) console.log(err.message)})
+            fs.writeFile("./configs/" + confName + "/index.html", newFile, 'utf8', (err) => {if (err) console.log(err.message)})
         });
     }
 
-    userServiceEndpoints () {
-        this.app.post("/get-user/:userName", (req, res) =>{
+    userServiceEndpoints() {
+        this.app.post("/get-user/:userName", (req, res) => {
             const userName = req.params.userName;
             const fileName = `${userName}.json`;
             let clientName = '';
@@ -48,9 +48,9 @@ class Server {
             });
 
             req.on('end', () => {
-                let filePath = path.join(__dirname.slice(0,-3), "/configs", "/" + clientName, "/users", "/" + fileName);
+                let filePath = path.join(__dirname.slice(0, -3), "/configs", "/" + clientName, "/users", "/" + fileName);
                 if (!fs.existsSync(filePath)) {
-                    filePath = path.join(__dirname.slice(0,-3), "/configs", "/users", "/" + fileName);
+                    filePath = path.join(__dirname.slice(0, -3), "/configs", "/users", "/" + fileName);
                     if (!fs.existsSync(filePath)) {
                         res.status(404).json({error: 'User config not found'});
                     }
@@ -63,11 +63,11 @@ class Server {
         });
     }
 
-    /*
+    /**
      * Main server method. It creates express and socketio objects
-     * @returns {Promise} Promise that resolves into an object of the express app object and socket io object
+     * @returns {Promise} - Promise that resolves into an object of the express app object and socket io object
      */
-    open () {
+    open() {
         return new Promise((resolve) => {
             console.log("Starting express server")
             if (this.config.https) {
@@ -94,11 +94,11 @@ class Server {
                 });
             });
 
-            this.server.listen(this.port, this.config.address || "localhost");
+            this.server.listen(this.port, this.config.address || "0.0.0.0");
 
             //for every defined client, create html file and an endpoint
             for (const conf of this.config.clientConfigs) {
-                if (fs.existsSync(path.resolve("./configs") + "/" + conf + "/" + conf + ".js")){
+                if (fs.existsSync(path.resolve("./configs") + "/" + conf + "/" + conf + ".js")) {
                     if (!fs.existsSync(path.resolve("./configs") + "/" + conf + "/index.html")) {
                         this.newHtml(conf);
                     }
@@ -106,11 +106,11 @@ class Server {
                 }
             }
 
-            if (fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/" + this.config.rootConf + ".js")){
+            if (fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/" + this.config.rootConf + ".js")) {
                 if (!fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/index.html")) {
                     this.newHtml(this.config.rootConf);
                 }
-                this.app.use("/" , express.static(path.resolve("./configs/" + this.config.rootConf)));
+                this.app.use("/", express.static(path.resolve("./configs/" + this.config.rootConf)));
             }
 
             this.app.use("/configs", express.static("./configs"));
@@ -119,10 +119,10 @@ class Server {
             this.app.use("/js", express.static("./js"));
 
             //TODO Create a default page (maybe basic controlls and stats?)
-//            this.app.get("/", (req, res) => {
-  //              let html = fs.readFileSync(path.resolve('./index.html'), { encoding: "utf8" });
-    //            res.send(html);
-      //      });
+            //            this.app.get("/", (req, res) => {
+            //              let html = fs.readFileSync(path.resolve('./index.html'), { encoding: "utf8" });
+            //            res.send(html);
+            //      });
 
             this.userServiceEndpoints();
 
@@ -135,10 +135,10 @@ class Server {
         });
     }
 
-    /*
+    /**
      * When terminating the program
      */
-    close () {
+    close() {
         return new Promise((resolve) => {
             for (const socket of this.serverSockets.values()) {
                 socket.destroy();
