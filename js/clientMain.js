@@ -4,12 +4,12 @@
 //loads client config variables (already defined variable clientConfig)
 //loads users listed in config (create an array of them with their mirror specific config)
 //loads modules
-    //searches the config for modules and create an array of all unique ones
-    //at the client config modules for default screen
-    //and for all users modules assigned to this mirror
-    //(maybe check for modules with the same config so they are not loaded multiple times)
-    //load the files from server (create a url and document.createElement("script"); it)
-        //(maybe a general loader for css and other type of files)
+//searches the config for modules and create an array of all unique ones
+//at the client config modules for default screen
+//and for all users modules assigned to this mirror
+//(maybe check for modules with the same config so they are not loaded multiple times)
+//load the files from server (create a url and document.createElement("script"); it)
+//(maybe a general loader for css and other type of files)
 //instanciate all modules (the name of the concrete module class should be the same as the name of the, so use new window[className]())
 //starts all modules (and hide all user defined by default) by calling start() methods
 //call createDom() for all modules (maybe just the mirror default at the beginnig, and then all when the hide/show is implemented) and build the page
@@ -18,7 +18,7 @@
  * This is the main class for the client side
  */
 class Client {
-    constructor () {
+    constructor() {
         //An array of running modules
         this.moduleObjs = [];
 
@@ -32,17 +32,17 @@ class Client {
         this.users = [];
 
         //All possible positions on screen
-	    this.modulePositions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
+        this.modulePositions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
 
         this.defModules = ["clock"];
     }
 
-    /*
+    /**
      * From a position name returns the wrapper for said position
-     * @param {string} position the wanted position
-     * @returns {dom object} the wrapper representing the position on screen
+     * @param {string} - Position the wanted position
+     * @returns {dom object} - The wrapper representing the position on screen
      */
-    selectPosition (position) {
+    selectPosition(position) {
         const posClasses = position.replace("_", " ");
         const posDiv = document.getElementsByClassName(posClasses);
         if (posDiv.length > 0) {
@@ -54,40 +54,40 @@ class Client {
     }
 
     /**
-	 * Checks for all positions if it has visible content.
-	 * If not, if will hide the position to prevent unwanted margins.
-	 * This method should be called by the show and hide methods.
-	 *
-	 * Example:
-	 * If the top_bar only contains the update notification. And no update is available,
-	 * the update notification is hidden. The top bar still occupies space making for
-	 * an ugly top margin. By using this function, the top bar will be hidden if the
-	 * update notification is not visible.
-	 */
-	updateWrapperStates () {
-        this.modulePositions.forEach((position) => {
-			const wrapper = this.selectPosition(position);
-			const moduleWrappers = wrapper.getElementsByClassName("module");
-
-			let showWrapper = false;
-			Array.prototype.forEach.call(moduleWrappers, function (moduleWrapper) {
-				if (moduleWrapper.style.position === "" || moduleWrapper.style.position === "static") {
-					showWrapper = true;
-				}
-			});
-
-			wrapper.style.display = showWrapper ? "block" : "none";
-		});
-	}
-
-    /*
-     * Hides the module from arguments
-     * @param {object} module the module to hide
-     * @param {number} speed number of ms for the hiding animation
-     * @param {function} callback a callback function that is called after the module is hidden
-     * @param {object} options an object containing optional options
+     * Checks for all positions if it has visible content.
+     * If not, if will hide the position to prevent unwanted margins.
+     * This method should be called by the show and hide methods.
+     *
+     * Example:
+     * If the top_bar only contains the update notification. And no update is available,
+     * the update notification is hidden. The top bar still occupies space making for
+     * an ugly top margin. By using this function, the top bar will be hidden if the
+     * update notification is not visible.
      */
-    hideModule (module, speed, callback, options = {}) {
+    updateWrapperStates() {
+        this.modulePositions.forEach((position) => {
+            const wrapper = this.selectPosition(position);
+            const moduleWrappers = wrapper.getElementsByClassName("module");
+
+            let showWrapper = false;
+            Array.prototype.forEach.call(moduleWrappers, function (moduleWrapper) {
+                if (moduleWrapper.style.position === "" || moduleWrapper.style.position === "static") {
+                    showWrapper = true;
+                }
+            });
+
+            wrapper.style.display = showWrapper ? "block" : "none";
+        });
+    }
+
+    /**
+     * Hides the module from arguments
+     * @param {object} - Module the module to hide
+     * @param {number} - Speed number of ms for the hiding animation
+     * @param {function} - Callback a callback function that is called after the module is hidden
+     * @param {object} - Options an object containing optional options
+     */
+    hideModule(module, speed, callback, options = {}) {
         console.log(`Hiding module ${module.name} with id ${module.id}`)
         const moduleWrapper = document.getElementById(module.id);
         if (moduleWrapper !== null) {
@@ -114,14 +114,14 @@ class Client {
         }
     }
 
-    /*
+    /**
      * Shows the hidden module from arguments
-     * @param {object} module the module to show
-     * @param {number} speed number of ms for the showing animation
-     * @param {function} callback a callback function that is called after the module is shown
-     * @param {object} options an object containing optional options
+     * @param {object} - Module the module to show
+     * @param {number} - Speed number of ms for the showing animation
+     * @param {function} - Callback a callback function that is called after the module is shown
+     * @param {object} - Options an object containing optional options
      */
-    showModule (module, speed, callback, options = {}) {
+    showModule(module, speed, callback, options = {}) {
         console.log(`Showing module ${module.name} with id ${module.id}`)
         const moduleWrapper = document.getElementById(module.id);
         if (moduleWrapper !== null) {
@@ -153,36 +153,45 @@ class Client {
 
     }
 
-    /*
+    /**
      * Fetches a main module file from the server
-     * @param {string} url the url where the file should be hosted
+     * @param {string} - Url the url where the file should be hosted
+     * @param {string} - Type the type of loaded file
      */
-    async loadModuleFile (url) {
-        if (this.loadedModules.includes(url)) {
-            return Promise.resolve()
-        }
+    async loadFile(url, type) {
+        if (type === "module" || type === "script") {
+            if (type === "module") {
+                if (this.loadedModules.includes(url)) {
+                    return Promise.resolve();
+                }
+            }
 
-        return new Promise((resolve) => {
-			console.log(`Load script: ${url}`);
-			let script = document.createElement("script");
-			script.type = "text/javascript";
-			script.src = url;
-			script.onload = function () {
-				resolve();
-			};
-			script.onerror = function () {
-				Log.error("Error on loading script:", url);
-				resolve();
-			};
-			document.getElementsByTagName("body")[0].appendChild(script);
-            this.loadedModules.push(url);
-		});
+            return new Promise((resolve) => {
+                console.log(`Load script: ${url}`);
+                let script = document.createElement("script");
+                script.type = "text/javascript";
+                script.src = url;
+                script.onload = function () {
+                    resolve();
+                };
+                script.onerror = function () {
+                    Log.error("Error on loading script:", url);
+                    resolve();
+                };
+                document.getElementsByTagName("body")[0].appendChild(script);
+                if (type === "module") {
+                    this.loadedModules.push(url);
+                }
+            });
+        } else if (type === "style") {
+
+        }
     }
 
-    /*
+    /**
      * For every module create an info object
      */
-    loadModulesInfo () {
+    loadModulesInfo() {
         configInUse.modules.forEach((moduleConfig, index) => {
             let moduleName = moduleConfig.module;
             let file = moduleName + ".js";
@@ -206,24 +215,24 @@ class Client {
 
     }
 
-    /*
+    /**
      * Pass info to a corresponding module
      */
-    passInfoToModule (moduleObj, moduleInfo) {
+    passInfoToModule(moduleObj, moduleInfo) {
         moduleObj.setData(moduleInfo);
 
         //start methods to load other dependencies and suff like translations and styles
     }
 
-    /*
+    /**
      * Instanciate a module by it's info object
-     * @param {object} moduleInfo An info object representing the module
+     * @param {object} - ModuleInfo An info object representing the module
      */
-    async loadModule (moduleInfo) {
+    async loadModule(moduleInfo) {
         const url = moduleInfo.folder + moduleInfo.file;
 
         console.log("Fetching module file " + url);
-        await this.loadModuleFile(url);
+        await this.loadFile(url, "module");
 
         const module = new window[moduleInfo.name]();
 
@@ -236,10 +245,10 @@ class Client {
         console.log(`Module loaded: ${module.name}`)
     }
 
-    /*
+    /**
      * Loading all modules
      */
-    async loadModules () {
+    async loadModules() {
         console.log("Loading modules")
         this.loadModulesInfo();
 
@@ -251,10 +260,10 @@ class Client {
     }
 
 
-    /*
+    /**
      * Create dom objects for modules with configured position
      */
-    createDomObjects () {
+    createDomObjects() {
         this.moduleObjs.forEach((moduleObj, index) => {
             let newWrapper = moduleObj.createDom();
             newWrapper.className = moduleObj.classes + " module";
@@ -263,12 +272,12 @@ class Client {
         })
     }
 
-    /*
+    /**
      *
      */
     moduleNeedsUpdate(module, newContent) {
         const moduleWrapper = document.getElementById(module.id);
-        if (moduleWrapper === null){
+        if (moduleWrapper === null) {
             return false;
         }
 
@@ -282,29 +291,29 @@ class Client {
         return contentNeedsUpdate;
     }
 
-    /*
+    /**
      *
      */
-    updateModuleContent (module, newContent) {
+    updateModuleContent(module, newContent) {
         let moduleWrapper = document.getElementById(module.id)
-        if(moduleWrapper === null){
+        if (moduleWrapper === null) {
             return;
         }
         moduleWrapper.innerHTML = "";
         moduleWrapper.appendChild(newContent);
     }
 
-    /*
+    /**
      *
      */
-    updateDomWithContent (module, newContent) {
+    updateDomWithContent(module, newContent) {
         if (module.hidden) {
             this.updateModuleContent(module);
             resolve();
             return;
         }
 
-        if(!this.moduleNeedsUpdate(module, newContent)) {
+        if (!this.moduleNeedsUpdate(module, newContent)) {
             resolve();
             return;
         }
@@ -312,16 +321,16 @@ class Client {
         this.updateModuleContent(module, newContent);
     }
 
-    /*
+    /**
      *
      */
-    updateDom (module, updateOptions) {
+    updateDom(module, updateOptions) {
         let newContentPromise = module.createDom();
 
         if (!(newContentPromise instanceof Promise)) {
-				// convert to a promise if not already one to avoid if/else's everywhere
-				newContentPromise = Promise.resolve(newContentPromise);
-		}
+            // convert to a promise if not already one to avoid if/else's everywhere
+            newContentPromise = Promise.resolve(newContentPromise);
+        }
 
         newContentPromise.then(function (newContent) {
             const updatePromise = this.updateDomWithContent(module, newContent);
@@ -330,14 +339,14 @@ class Client {
         }.bind(this)).catch((error) => console.error(error));
     }
 
-    /*
-     * Called by module ekvivalent method. Sends the notification to all modules except the sender or only to sendTo
-     * @param {string} notification The notification name
-     * @param {string} payload the payload of the notification
-     * @param {object} sender the module object that sends the notification
-     * @param {object} sendTo optional parameter that directs the notification to specific module
+    /**
+     * Called by module eqivalent method. Sends the notification to all modules except the sender or only to sendTo
+     * @param {string} - Notification The notification name
+     * @param {string} - Payload the payload of the notification
+     * @param {object} - Sender the module object that sends the notification
+     * @param {object} - SendTo optional parameter that directs the notification to specific module
      */
-    sendNotification (notification, payload, sender, sendTo) {
+    sendNotification(notification, payload, sender, sendTo) {
         for (const module of this.moduleObjs) {
             if (module !== sender && (!sendTo || module === sendTo)) {
                 module.notificationReceived(notification, payload, sender);
@@ -345,10 +354,10 @@ class Client {
         }
     }
 
-    /*
+    /**
      * Calls start method for all modules
      */
-    async startModules () {
+    async startModules() {
         for (const module of this.moduleObjs) {
             module.start();
             console.log(`Module started: ${module.name}`)
@@ -356,10 +365,10 @@ class Client {
         this.sendNotification("ALL_MODULES_STARTED", "", {});
     }
 
-    /*
+    /**
      * Startup method
      */
-    async init () {
+    async init() {
         await this.loadModules();
 
         this.createDomObjects();
@@ -367,14 +376,14 @@ class Client {
         await this.startModules();
     }
 
-    async reload () {
+    async reload() {
         //empty the client.moduleObj array
         this.modulesInfo = [];
 
         //maybe later implement the end method?
         //suspend all modules (they are gonna be deleted)
         for (let module of this.moduleObjs) {
-           module.suspend();
+            module.suspend();
         }
 
         console.log(`MODULES: ${client.moduleObjs}`)

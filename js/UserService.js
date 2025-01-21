@@ -34,40 +34,40 @@
  */
 
 
-/*
+/**
  * This class role is to switch the displayed user profile,
  * keep all necessery info about the users and their modules,
  * and to make switching more secure
  */
 class UserService {
-    constructor () {
+    constructor() {
         //if env variable if in SAVE or DELETE mode
-        if (clientConfig.userSwitchMode === "SAVE"){
+        if (clientConfig.userSwitchMode === "SAVE") {
             this.userModulesStorage = []; //save mode, saves the moduleObj of the current user (aka an array of arrays of module objects)
         } else {
             if (clientConfig.userSwitchMode !== "DELETE") console.warn("Not existing option for userSwitchMode. Using default DELETE")
             this.userConfigStorage = []; //delete mode, saves the configs so it does not have to ask the server for the
-                                         //config every time it wants to switch to the user (aka array of userConfig objects)
+            //config every time it wants to switch to the user (aka array of userConfig objects)
         }
 
         //this.defaultConfig = {name: clientConfig.name, modules: clientConfig.defaultModules};
         this.activeUser = clientConfig.name;
     }
 
-    changeUser (userName) {
-        if(clientConfig.userSwitchMode === "SAVE"){
+    changeUser(userName) {
+        if (clientConfig.userSwitchMode === "SAVE") {
             changeUserSAVE(userName);
         } else {
             this.changeUserDELETE(userName);
         }
     }
 
-    changeUserSAVE (userName) {
+    changeUserSAVE(userName) {
         let user = this.findUser(userName);
 
     }
 
-    async changeUserDELETE (userName) {
+    async changeUserDELETE(userName) {
         let user = await this.findUserConfig(userName);
 
         //empty the DOM
@@ -82,13 +82,13 @@ class UserService {
         client.reload();
     }
 
-    async findUserConfig (userName) {
+    async findUserConfig(userName) {
         let user;
 
-        if(clientConfig.userSwitchMode === "SAVE"){
+        if (clientConfig.userSwitchMode === "SAVE") {
             user = this.userModulesStorage.find(user => user.name === userName);
         } else {
-            if(userName === "default"){
+            if (userName === "default") {
                 user = {name: clientConfig.name, modules: clientConfig.defaultModules};
             } else {
                 user = this.userConfigStorage.find(user => user.name === userName);
@@ -109,7 +109,7 @@ class UserService {
             const data = await response.json();
             user = data;
 
-            if(clientConfig.userSwitchMode === "SAVE"){
+            if (clientConfig.userSwitchMode === "SAVE") {
                 this.userModulesStorage.push({name: user.name, moduleObjs: []});
             } else {
                 this.userConfigStorage.push(user);
