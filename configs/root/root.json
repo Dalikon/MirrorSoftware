@@ -1,4 +1,7 @@
 {
+    "name": "root",
+    "type": "dashboard",
+    "userSwitchMode": "DELETE",
     "defaultModules": [
         {
             "module": "dbbutton",

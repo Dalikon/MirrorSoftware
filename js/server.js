@@ -8,7 +8,7 @@ const ipfilter = require("express-ipfilter").IpFilter;
 const helmet = require("helmet");
 const socketio = require("socket.io");
 
-const cTracker = require("clientTracker");
+const clientTracker = require("./clientTracker");
 
 /**
  * Class representing a server that serves all files necessery to run a mirror client
@@ -69,13 +69,61 @@ class Server {
     loadTrackerFile() {
         try {
             const data = fs.readFileSync('./workData/cTracker.json', "utf8");
-            tracked = JSON.parse(data);
-            this.trackedClients = tracked.map(cTracker.fromObject);
+            let tracked = JSON.parse(data);
+            this.trackedClients = tracked.map(clientTracker.fromObject);
             console.log("Client tracker data loaded.");
         } catch (error) {
             console.error("Error loading cTracker.json:", error.message);
             this.trackedClients = []
         }
+    }
+
+    trackerSetup() {
+        this.io.on("connection", (socket) => {
+            console.log(`Client connected: ${socket.handshake.query.clientName}`);
+
+            const clientName = socket.handshake.query.clientName;
+            const clientIp = socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
+            let beats = 0;
+
+            let client = this.trackedClients.find((c) => c.name === clientName);
+
+            client.lastOnline = new Date();
+            client.connectedAt = new Date();
+            client.status = "online";
+            if (client.connections.find((c) => c.ip === clientIp) == null) {
+                client.connections.push({
+                    "ip": clientIp
+                });
+            }
+
+            fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
+
+            socket.on("heartbeat", () => {
+                client.lastOnline = new Date();
+                console.log(`Heartbeat received from ${client.name}`);
+                beats += 1;
+                if (beats === 3) {
+                    fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
+                    beats = 0;
+                }
+            });
+
+            socket.on("disconnect", () => {
+                console.log(`Client disconnected from server: ${client.name}`);
+                const index = client.connections.findIndex(connection => connection.ip === clientIp);
+
+                if (index !== -1) {
+                    client.connections.splice(index, 1); // Remove the object at the found index
+                }
+
+                if (client.connections.length == 0) {
+                    client.status = "offline"
+                }
+
+                fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
+            });
+        });
     }
 
     /**
@@ -107,43 +155,7 @@ class Server {
             */
             this.loadTrackerFile();
 
-            this.io.on("connection", (socket) => {
-                console.log(`Client connected: ${socket.handshake.query.clientId}`);
-
-                const clientName = socket.handshake.query.clientName;
-                const clientIp = socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
-                let beats = 0;
-
-                let client = this.trackedClients.find((c) => c.name === clientName);
-
-                client.lastOnline = new Date();
-                client.connectedAt = new Date();
-                client.status = "online";
-                client.connections.append({
-                    "ip": clientIp
-                });
-
-
-                socket.on("heartbeat", () => {
-                    client.lastOnline = new Date();
-                    console.log(`Heartbeat received from ${socket.id}`);
-                    if (beats === 3) {
-                        fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
-                        beats = 0;
-                    }
-                });
-
-                socket.on("disconnect", () => {
-                    console.log(`Client disconnected from ${namespace}: ${socket.id}`);
-                    client.status = "offline"
-                    const index = client.connections.findIndex(connection => connection.ip === clientIp);
-
-                    if (index !== -1) {
-                        client.connections.splice(index, 1); // Remove the object at the found index
-                    }
-
-                });
-            });
+            this.trackerSetup();
 
             this.server.on("connection", (socket) => {
                 this.serverSockets.add(socket);

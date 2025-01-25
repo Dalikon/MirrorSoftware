@@ -4,6 +4,7 @@ const envsub = require("envsub");
 const lodash = require('lodash');
 
 const Server = require('./server');
+const clientTracker = require('./clientTracker')
 
 /**
  * The main program class.
@@ -177,12 +178,15 @@ class Core {
             }
 
             if (!trackerFileExists) {
-                let tracker = new clientTracker(client, type = "mirror");
+                let tracker = new clientTracker(client, "mirror");
                 clientTrackers.push(tracker);
             }
         }
 
         if (!trackerFileExists) {
+            let rootTracker = new clientTracker("root", "dashboard");
+            clientTrackers.push(rootTracker);
+
             try {
                 fs.writeFileSync('./workData/cTracker.json', JSON.stringify(clientTrackers, null, 2), "utf8");
                 console.log("Client tracker data saved.");
@@ -240,5 +244,6 @@ class Core {
         }
 
     }
+}
 
 let core = new Core().start();

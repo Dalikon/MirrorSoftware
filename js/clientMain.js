@@ -393,11 +393,14 @@ class Client {
     }
 }
 
+
+
 let client;
 let clientConfig;
 let userService;
 let configInUse;
 let freshRegions;
+let trackerSocket;
 
 fetchConfig().then(conf => {
     console.log("Getting config");
@@ -409,11 +412,19 @@ fetchConfig().then(conf => {
     userService = new UserService();
 
     freshRegions = document.getElementById('all-regions').innerHTML;
-    console.log(freshRegions)
+    //console.log(freshRegions)
 
     console.log("Client is starting");
     client = new Client();
     client.init();
+
+    trackerSocket = new ClientSocket("/", {clientName: clientConfig.name, clientType: "mirror"});
+    trackerSocket.socket.on("connect", () => {
+        setInterval(() => {
+            console.log("Sending heartbeat...");
+            trackerSocket.socket.emit("heartbeat");
+        }, 10000);
+    });
 
     //setInterval(() => {
     //        setTimeout(() => {userService.changeUser(clientConfig.users[0])}, 15000);

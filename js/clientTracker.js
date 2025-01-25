@@ -9,7 +9,7 @@ class clientTracker {
     }
 
     static fromObject(obj) {
-        return new Client(
+        return new clientTracker(
             obj.name,
             obj.type,
             obj.lastOnline,
@@ -26,4 +26,7 @@ class clientTracker {
     end() {
 
     }
-}
+};
+
+module.exports = clientTracker;
+
