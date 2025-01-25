@@ -1,0 +1,46 @@
+services:
+  server:
+    #image: mirrorimage
+    build: .
+    environment:
+      - START_SERVER=${START_SERVER:-true}
+    command: >
+      sh -c "
+        if [ \"${START_SERVER:-true}\" = \"true\" ]; then
+          npm run server;
+        else
+          echo 'Skipping server start';
+        fi
+      "
+    ports:
+      - "8080:8080"
+    networks: 
+      - mirrorNetwork
+    volumes:
+      - ./configs:/app/configs
+      - ./workData:/app/workData
+
+  electron:
+    #image: mirrorimage
+    build: .
+    environment:
+      - START_ELECTRON=${START_ELECTRON:-false}
+      - DISPLAY=${DISPLAY}  # Pass the host's DISPLAY
+    command: >
+      sh -c "
+        if [ \"$START_ELECTRON\" = \"true\" ]; then
+          npm run mirrorClient -- --no-sandbox;
+        else
+          echo 'Skipping Electron start';
+        fi
+      "
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix  # Share X11 socket
+      - /run/dbus:/run/dbus            # D-Bus socket for communication
+      - ./configs:/app/configs
+      - ./workData:/app/workData
+    network_mode: "host"  # Useful for GUI support in Electron on Linux
+
+networks:
+  mirrorNetwork:
+    driver: bridge
