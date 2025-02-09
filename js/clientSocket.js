@@ -27,7 +27,7 @@ class ClientSocket {
 
         const onevent = this.socket.onevent;
         this.socket.onevent = (packet) => {
-            console.log("DEBUG: Receiced packet: ", packet);
+            console.debug("ClientSocket Receiced packet: ", packet);
             if (packet && packet.data) {
                 const args = packet.data || [];
                 onevent.call(this.socket, packet); // original call

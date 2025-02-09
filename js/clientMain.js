@@ -263,13 +263,28 @@ class Client {
     /**
      * Create dom objects for modules with configured position
      */
-    createDomObjects() {
-        this.moduleObjs.forEach((moduleObj, index) => {
-            let newWrapper = moduleObj.createDom();
-            newWrapper.className = moduleObj.classes + " module";
-            newWrapper.id = moduleObj.id;
-            this.selectPosition(moduleObj.position).appendChild(newWrapper);
-        })
+    async createDomObjects() {
+        for (const moduleObj of this.moduleObjs) {
+            let newWrapper = await moduleObj.createDom();
+            if (newWrapper !== undefined) {
+                newWrapper.className = moduleObj.classes + " module";
+                newWrapper.id = moduleObj.id;
+                this.selectPosition(moduleObj.position).appendChild(newWrapper);
+            } else {
+                console.log("CreateDom returns undefined");
+            }
+        }
+        /*this.moduleObjs.forEach((moduleObj, index) => {
+           let newWrapper = await moduleObj.createDom();
+           if (newWrapper !== undefined) {
+               newWrapper.className = moduleObj.classes + " module";
+               newWrapper.id = moduleObj.id;
+               console.log(newWrapper)
+               this.selectPosition(moduleObj.position).appendChild(newWrapper);
+           } else {
+               console.log("CreateDom returns undefined")
+           }
+        })*/
     }
 
     /**
@@ -314,7 +329,7 @@ class Client {
         }
 
         if (!this.moduleNeedsUpdate(module, newContent)) {
-            resolve();
+            //resolve();
             return;
         }
 
@@ -324,7 +339,7 @@ class Client {
     /**
      *
      */
-    updateDom(module, updateOptions) {
+    updateDom(module, updateOptions = null) {
         let newContentPromise = module.createDom();
 
         if (!(newContentPromise instanceof Promise)) {
@@ -354,6 +369,14 @@ class Client {
         }
     }
 
+    findModuleByID(moduleID) {
+        for (const module of this.moduleObjs) {
+            if (moduleID === module.id) {
+                return module;
+            }
+        }
+    }
+
     /**
      * Calls start method for all modules
      */
@@ -371,7 +394,7 @@ class Client {
     async init() {
         await this.loadModules();
 
-        this.createDomObjects();
+        await this.createDomObjects();
 
         await this.startModules();
     }
@@ -402,33 +425,61 @@ let configInUse;
 let freshRegions;
 let trackerSocket;
 
-fetchConfig().then(conf => {
-    console.log("Getting config");
-    clientConfig = conf
+async function startClient() {
+    try {
+        const clientName = document.getElementById("clientName").src.split('/').pop().replace('.js', '');
+        const conf = await fetchConfig(clientName);
+        console.log("Getting config");
+        clientConfig = conf;
 
-    configInUse = {name: clientConfig.name, modules: clientConfig.defaultModules};
+        configInUse = {name: clientConfig.name, modules: clientConfig.defaultModules};
 
-    console.log("UserService is starting");
-    userService = new UserService();
+        console.log("UserService is starting");
+        userService = new UserService();
 
-    freshRegions = document.getElementById('all-regions').innerHTML;
-    //console.log(freshRegions)
+        freshRegions = document.getElementById('all-regions').innerHTML;
+        trackerSocket = new ClientSocket("/", {clientName: clientConfig.name, clientType: "mirror"});
+        trackerSocket.socket.on("connect", () => {
+            setInterval(() => {
+                console.info("Sending heartbeat...");
+                trackerSocket.socket.emit("heartbeat");
+            }, 10000);
+        });
 
-    console.log("Client is starting");
-    client = new Client();
-    client.init();
+        trackerSocket.socket.on("HIDE_MODULE_Y", (payload) => {
+            client.findModuleByID(payload.id).hide();
+        });
 
-    trackerSocket = new ClientSocket("/", {clientName: clientConfig.name, clientType: "mirror"});
-    trackerSocket.socket.on("connect", () => {
-        setInterval(() => {
-            console.log("Sending heartbeat...");
-            trackerSocket.socket.emit("heartbeat");
-        }, 10000);
-    });
+        trackerSocket.socket.on("SHOW_MODULE_Y", (payload) => {
+            client.findModuleByID(payload.id).show();
+        });
 
-    //setInterval(() => {
-    //        setTimeout(() => {userService.changeUser(clientConfig.users[0])}, 15000);
-    //        setTimeout(() => {userService.changeUser("default")}, 30000);
-    //    }, 35000);
-});
+        trackerSocket.socket.on("SUSPEND_MODULE_Y", (payload) => {
+            client.findModuleByID(payload.id).suspend();
+        });
+
+        trackerSocket.socket.on("RESUME_MODULE_Y", (payload) => {
+            client.findModuleByID(payload.id).resume();
+        });
+
+        trackerSocket.socket.on("CHANGE_USER_Y", (payload) => {
+            userService.changeUser(payload.user);
+        });
+
+        console.log("Client is starting");
+        client = new Client();
+        await client.init();  // Wait for client to initialize
+
+        // If you need to execute periodic user changes, uncomment the following:
+        // setInterval(() => {
+        //     setTimeout(() => { userService.changeUser(clientConfig.users[0]) }, 15000);
+        //     setTimeout(() => { userService.changeUser("default") }, 30000);
+        // }, 35000);
+    } catch (error) {
+        console.error("Error during client startup:", error);
+    }
+}
+
+// Start the client process
+startClient();
 

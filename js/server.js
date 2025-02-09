@@ -19,7 +19,8 @@ class Server {
         this.port = config.port || 8080;
         this.serverSockets = new Set();
         this.server = null;
-        this.config = config
+        this.config = config;
+        this.clientMap = new Map();
         this.trackedClients = [];
     }
 
@@ -82,8 +83,10 @@ class Server {
         this.io.on("connection", (socket) => {
             console.log(`Client connected: ${socket.handshake.query.clientName}`);
 
+
             const clientName = socket.handshake.query.clientName;
             const clientIp = socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
+            this.clientMap.set(clientName, socket)
             let beats = 0;
 
             let client = this.trackedClients.find((c) => c.name === clientName);
@@ -93,20 +96,73 @@ class Server {
             client.status = "online";
             if (client.connections.find((c) => c.ip === clientIp) == null) {
                 client.connections.push({
-                    "ip": clientIp
+                    "ip": clientIp,
+                    "connectedAt": client.connectedAt
                 });
             }
 
             fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
 
+            let missedHeartbeats = 0;
+
+            const checkHeartbeat = () => {
+                if (client.status === "online") {
+                    missedHeartbeats += 1;
+                    if (missedHeartbeats >= 4) {
+                        console.log(`Client ${client.name} is unresponsive. Disconnecting...`);
+                        socket.disconnect(); // Disconnect the client
+                        return;
+                    }
+                    setTimeout(checkHeartbeat, 10000);
+                }
+            };
+
+            let heartbeatTimer = setTimeout(checkHeartbeat, 10000);
+
             socket.on("heartbeat", () => {
                 client.lastOnline = new Date();
                 console.log(`Heartbeat received from ${client.name}`);
+                missedHeartbeats = 0;
                 beats += 1;
                 if (beats === 3) {
                     fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
                     beats = 0;
                 }
+            });
+
+            socket.on("retrieveTrackers", () => {
+                if (client.name == "root") {
+                    console.log("Root requested client tracker data");
+                    socket.emit("trackersData", this.trackedClients)
+                }
+            });
+
+            socket.on("HIDE_MODULE_X", (payload) => {
+                console.log(payload);
+                this.clientMap.get(payload.client).emit("HIDE_MODULE_Y", payload);
+
+            });
+
+            socket.on("SHOW_MODULE_X", (payload) => {
+                console.log(payload)
+                this.clientMap.get(payload.client).emit("SHOW_MODULE_Y", payload);
+            });
+
+            socket.on("SUSPEND_MODULE_X", (payload) => {
+                console.log(payload)
+                this.clientMap.get(payload.client).emit("SUSPEND_MODULE_Y", payload);
+            });
+
+            socket.on("RESUME_MODULE_X", (payload) => {
+                console.log(payload)
+                this.clientMap.get(payload.client).emit("RESUME_MODULE_Y", payload);
+            });
+
+            socket.on("CHANGE_USER_X", (payload) => {
+                console.log(payload);
+                let editClient = this.trackedClients.find((c) => c.name === payload.client);
+                editClient.user = payload.user;
+                this.clientMap.get(payload.client).emit("CHANGE_USER_Y", payload);
             });
 
             socket.on("disconnect", () => {
@@ -119,9 +175,14 @@ class Server {
 
                 if (client.connections.length == 0) {
                     client.status = "offline"
+                    this.clientMap.delete(client.name)
                 }
 
+                client.user = "default";
+
                 fs.writeFileSync('./workData/cTracker.json', JSON.stringify(this.trackedClients, null, 2), "utf8");
+
+                clearTimeout(heartbeatTimer);
             });
         });
     }
@@ -176,6 +237,7 @@ class Server {
                 }
             }
 
+            //if js file for root client exists, create a html file for it and host it
             if (fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/" + this.config.rootConf + ".js")) {
                 if (!fs.existsSync(path.resolve("./configs") + "/" + this.config.rootConf + "/index.html")) {
                     this.newHtml(this.config.rootConf);
