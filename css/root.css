@@ -1,6 +1,6 @@
 :root {
-  --color-text: #999;
-  --color-text-dimmed: #666;
+  --color-text: #000; /*#999*/
+  --color-text-dimmed: #000; /*#666*/
   --color-text-bright: #fff;
   --color-background: #000;
   --font-primary: "Roboto Condensed";
@@ -19,7 +19,7 @@
 }
 
 html {
-  cursor: none;
+  cursor: default;
   overflow: hidden;
   background: var(--color-background);
   user-select: none;
@@ -244,9 +244,11 @@ sup {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+      justify-content: flex-start;
+      align-items: flex-start;
   }
   
-  .client-button {
+  .view-client {
       padding: 10px 20px;
       background-color: #007BFF;
       color: white;
@@ -255,32 +257,111 @@ sup {
       cursor: pointer;
   }
   
-  .client-button:hover {
+  .view-client:hover {
       background-color: #0056b3;
   }
+
+.client-div {
+    display: flex; /* Arrange content in a row (e.g., name, status, button) */
+    flex-direction: column; /* Stack items vertically */
+    align-items: center;/*flex-start;  Align items to the left */
+    width: auto;
+    min-width: 180px;
+    padding: 20px; /* Add space inside the container */
+    margin: 15px; /* Add space between client-divs */
+    background-color: #f9f9f9; /* Light background for contrast */
+    border: 1px solid #ddd; /* Subtle border for structure */
+    border-radius: 10px; /* Rounded corners for modern look */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
+    transition: transform 0.2s, box-shadow 0.2s; /* Smooth hover effects */
+}
+
+.client-div:hover {
+    transform: scale(1.03); /* Slightly enlarge on hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2); /* More prominent shadow on hover */
+}
+
+.client-div h4 {
+    margin: 0; /* Remove default margin */
+    color: #333; /* Darker text for contrast */
+    font-size: 1.5rem; /* Emphasize the name */
+}
+
+.client-div p {
+    margin: 10px 0; /* Add spacing between paragraphs */
+    color: #666; /* Slightly lighter text for secondary info */
+    font-size: 1rem;
+}
+
+.client-div span {
+    font-weight: bold; /* Highlight the status */
+}
+
+.client-div span.online {
+    color: green; /* Green for online status */
+}
+
+.client-div span.offline {
+    color: red; /* Red for offline status */
+}
+
+.client-div button {
+    margin-top: 10px; /* Space above the button */
+    padding: 10px 20px; /* Comfortable button size */
+    background-color: #007BFF; /* Blue button */
+    color: white; /* White text */
+    border: none; /* Remove default border */
+    border-radius: 5px; /* Rounded button */
+    cursor: pointer; /* Pointer cursor for interaction */
+    transition: background-color 0.2s; /* Smooth hover effect */
+}
+
+.client-div button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
   
-  #popup {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: white;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      padding: 20px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      z-index: 1000;
-      display: none;
-  }
-  
-  .popup-content {
-      position: relative;
-  }
-  
-  #close-popup {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      cursor: pointer;
-      font-size: 18px;
-  }
+ #popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: none;
+    width: auto;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+    opacity: 0;  /* Start with the popup being invisible */
+    transition: opacity 0.3s ease, transform 0.3s ease;  /* Add smooth fade-in */
+}
+
+#popup.show {
+    display: block;
+    opacity: 1;  /* Make the popup visible */
+    transform: translate(-50%, -50%) scale(1.1);  /* Slight zoom effect */
+}
+
+#close-popup {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    font-size: 18px;
+    z-index: 1100;
+    margin-top: "10px";
+}
+
+.popupModule {
+    display: flex; /* Arrange items in a row */
+    flex-wrap: wrap; /* Allow wrapping if too many items */
+    gap: 10px; /* Space between items */
+    align-items: center; /* Align items vertically */
+    justify-content: flex-start; /* Align items to the left */
+
+}
