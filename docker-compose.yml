@@ -19,6 +19,9 @@ services:
     volumes:
       - ./configs:/app/configs
       - ./workData:/app/workData
+      - ./modules:/app/modules
+      - ./css:/app/css
+      - ./js:/app/js
 
   electron:
     #image: mirrorimage
