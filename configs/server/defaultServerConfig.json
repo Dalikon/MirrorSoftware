@@ -8,7 +8,7 @@
 	"checkServerInterval": 30000,
 
     "userSwitchMode": "DELETE",
-
+    
 	"logLevel": ["INFO", "LOG", "WARN", "ERROR"],
 	"reloadAfterServerRestart": false,
 
@@ -19,5 +19,6 @@
 	"customCss": "css/custom.css",
 
     "rootConf": "root",
-    "clientConfigs": []
+    "clientConfigs": [],
+    "providedModules": ["clock", "dbbutton", "helloworld", "clientDisplay", "clientDetailes"]
 }

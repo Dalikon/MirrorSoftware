@@ -34,7 +34,7 @@ class Client {
         //All possible positions on screen
         this.modulePositions = ["top_bar", "top_left", "top_center", "top_right", "upper_third", "middle_center", "lower_third", "bottom_left", "bottom_center", "bottom_right", "bottom_bar", "fullscreen_above", "fullscreen_below"];
 
-        this.defModules = ["clock"];
+        this.defModules = ["clock", "dbbutton", "helloworld", "clientDisplay", "clientDetailes"];
     }
 
     /**
@@ -195,7 +195,12 @@ class Client {
         configInUse.modules.forEach((moduleConfig, index) => {
             let moduleName = moduleConfig.module;
             let file = moduleName + ".js";
-            let folder = "/modules/" + moduleName + "/";
+            let folder;
+            if (this.defModules.includes(moduleName)) {
+                folder = "/modules/default/" + moduleName + "/";
+            } else {
+                folder = "/modules/" + moduleName + "/";
+            }
             let id = `${moduleName}_${index}`;
 
             this.modulesInfo.push({
@@ -416,7 +421,34 @@ class Client {
     }
 }
 
+function setupTrackerSocket(tracker) {
+    tracker.socket.on("connect", () => {
+        setInterval(() => {
+            console.info("Sending heartbeat...");
+            trackerSocket.socket.emit("heartbeat");
+        }, 10000);
+    });
 
+    tracker.socket.on("HIDE_MODULE_Y", (payload) => {
+        client.findModuleByID(payload.id).hide();
+    });
+
+    tracker.socket.on("SHOW_MODULE_Y", (payload) => {
+        client.findModuleByID(payload.id).show();
+    });
+
+    tracker.socket.on("SUSPEND_MODULE_Y", (payload) => {
+        client.findModuleByID(payload.id).suspend();
+    });
+
+    tracker.socket.on("RESUME_MODULE_Y", (payload) => {
+        client.findModuleByID(payload.id).resume();
+    });
+
+    tracker.socket.on("CHANGE_USER_Y", (payload) => {
+        userService.changeUser(payload.user);
+    });
+}
 
 let client;
 let clientConfig;
@@ -438,43 +470,14 @@ async function startClient() {
         userService = new UserService();
 
         freshRegions = document.getElementById('all-regions').innerHTML;
+
         trackerSocket = new ClientSocket("/", {clientName: clientConfig.name, clientType: "mirror"});
-        trackerSocket.socket.on("connect", () => {
-            setInterval(() => {
-                console.info("Sending heartbeat...");
-                trackerSocket.socket.emit("heartbeat");
-            }, 10000);
-        });
-
-        trackerSocket.socket.on("HIDE_MODULE_Y", (payload) => {
-            client.findModuleByID(payload.id).hide();
-        });
-
-        trackerSocket.socket.on("SHOW_MODULE_Y", (payload) => {
-            client.findModuleByID(payload.id).show();
-        });
-
-        trackerSocket.socket.on("SUSPEND_MODULE_Y", (payload) => {
-            client.findModuleByID(payload.id).suspend();
-        });
-
-        trackerSocket.socket.on("RESUME_MODULE_Y", (payload) => {
-            client.findModuleByID(payload.id).resume();
-        });
-
-        trackerSocket.socket.on("CHANGE_USER_Y", (payload) => {
-            userService.changeUser(payload.user);
-        });
+        setupTrackerSocket(trackerSocket);
 
         console.log("Client is starting");
         client = new Client();
         await client.init();  // Wait for client to initialize
 
-        // If you need to execute periodic user changes, uncomment the following:
-        // setInterval(() => {
-        //     setTimeout(() => { userService.changeUser(clientConfig.users[0]) }, 15000);
-        //     setTimeout(() => { userService.changeUser("default") }, 30000);
-        // }, 35000);
     } catch (error) {
         console.error("Error during client startup:", error);
     }

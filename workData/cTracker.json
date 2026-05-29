@@ -2,24 +2,32 @@
   {
     "name": "bathroom",
     "type": "mirror",
-    "lastOnline": "2025-01-25T09:53:05.449Z",
-    "connectedAt": "2025-01-25T08:23:05.263Z",
+    "lastOnline": "2026-05-29T16:29:46.950Z",
+    "connectedAt": "2026-05-29T16:27:46.944Z",
     "status": "online",
+    "user": "default",
     "connections": [
       {
-        "ip": "192.168.8.160"
+        "ip": "172.18.0.1",
+        "connectedAt": "2025-02-11T21:17:12.624Z"
+      },
+      {
+        "ip": "127.0.0.1",
+        "connectedAt": "2026-05-29T16:27:46.944Z"
       }
     ]
   },
   {
     "name": "root",
     "type": "dashboard",
-    "lastOnline": "2025-01-25T09:52:23.147Z",
-    "connectedAt": "2025-01-25T08:23:05.164Z",
+    "lastOnline": "2026-05-29T16:28:45.669Z",
+    "connectedAt": "2026-05-29T16:27:44.844Z",
     "status": "online",
+    "user": "default",
     "connections": [
       {
-        "ip": "172.18.0.1"
+        "ip": "172.18.0.1",
+        "connectedAt": "2025-02-11T21:17:55.632Z"
       }
     ]
   }

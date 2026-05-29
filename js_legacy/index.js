@@ -116,7 +116,14 @@ class Core {
 
         //start the helper if there is any
         for (module of this.diffModules) {
-            let moduleFile = `${this.rootDir}/modules/${module}/${module}.js`
+            let moduleFile;
+
+            if (this.config.providedModules.includes(module)) {
+                moduleFile = `${this.rootDir}/modules/default/${module}/${module}.js`
+            } else {
+                moduleFile = `${this.rootDir}/modules/${module}/${module}.js`
+            }
+
             try {
                 fs.accessSync(moduleFile, fs.R_OK);
             } catch (e) {

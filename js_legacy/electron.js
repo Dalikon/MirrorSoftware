@@ -78,7 +78,7 @@ function createWindow() {
         prefix = "http://";
     }
 
-    let address = (config.address === "undefined") | (config.address === "") | (config.address === "0.0.0.0") ? (config.address = "localhost") : config.address;
+    let address = (config.address === "undefined") || (config.address === "") || (config.address === "0.0.0.0") ? (config.address = "localhost") : config.address;
     const port = config.port;
     let client = config.clientName;
     mainWindow.loadURL(`${prefix}${address}:${port}/${client}`);
