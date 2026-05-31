@@ -1,11 +1,12 @@
 import express from "express";
+import type { RequestHandler } from "express";
 import type { Socket, Namespace } from "socket.io";
 
 class Helper {
     name!: string;
     path!: string;
-    expressApp!: express.Router;
-    socketio!: Namespace;
+    private expressApp!: express.Router;
+    private socketio!: Namespace;
 
     constructor() {
         this.init();
@@ -42,6 +43,10 @@ class Helper {
 
     setPath(path: string): void {
         this.path = path;
+    }
+
+    registerRoute(method: "get" | "post" | "put" | "delete" | "use", path: string, handler: RequestHandler): void {
+        this.expressApp[method](path, handler);
     }
 
     setExpressApp(app: express.Router): void {
