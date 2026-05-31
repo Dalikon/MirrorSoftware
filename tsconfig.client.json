@@ -11,12 +11,12 @@
     "skipLibCheck": true
   },
   "include": [
-    "js/module.ts",
-    "js/clientMain.ts",
-    "js/clientSocket.ts",
-    "js/UserService.ts",
+    "js/clientState.ts",
     "js/utils.ts",
-    "js/mirror.ts",
+    "js/clientSocket.ts",
+    "js/module.ts",
+    "js/UserService.ts",
+    "js/clientMain.ts",
     "types/**/*"
   ],
   "exclude": [

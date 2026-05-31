@@ -11,7 +11,7 @@ class clientDetailes extends Module {
 
     async showPopup(targetClient) {
         //Use fetchConfig from (client).js to fetch the confing of a client that the detailes needs to be displayed
-        this.clientConfig = await fetchConfig(targetClient.name, true);
+        this.clientConfig = await fetchClientConfig(targetClient.name);
         this.tClientData = targetClient;
 
         // Remove existing popup if it exists
@@ -200,7 +200,7 @@ class clientDetailes extends Module {
     }
 
     async userElement(user, client) {
-        const userConfig = await fetchConfig(client, false, true, user);
+        const userConfig = await fetchUserConfig(client, user);
         this.userConfigs.push(userConfig);
 
         const userButton = document.createElement("button");

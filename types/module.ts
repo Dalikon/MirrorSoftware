@@ -19,7 +19,7 @@ export type ClientType = "mirror" | "dashboard";
 
 export interface ModuleDefinition {
     module: string;
-    position: ModulePosition;
+    position?: ModulePosition;
     classes?: string;
     config?: Record<string, unknown>;
     hiddenOnStartup?: boolean;

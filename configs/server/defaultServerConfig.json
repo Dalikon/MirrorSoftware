@@ -2,12 +2,30 @@
 	"address": "0.0.0.0",
 	"port": "8080",
 	"ipWhitelist": ["127.0.0.1", "::ffff:127.0.0.1", "::1"],
-    "ipBlackList": [],
-    "https": false,
-    "httpHeaders": { "contentSecurityPolicy": false, "crossOriginOpenerPolicy": false, "crossOriginEmbedderPolicy": false, "crossOriginResourcePolicy": false, "originAgentCluster": false },
+  "ipBlackList": [],
+  "https": false,
+  "httpHeaders": { 
+    "contentSecurityPolicy": {
+      "directives": {
+        "default-src": ["'self'"],
+        "script-src": ["'self'"],
+        "style-src": ["'self'"],
+        "connect-src": ["'self'"],
+        "img-src": ["'self'", "data:"],
+        "font-src": ["'self'"],
+        "frame-ancestors": ["'none'"],
+        "object-src": ["'none'"],
+        "base-uri": ["'self'"]
+      }
+    }, 
+    "crossOriginOpenerPolicy": false, 
+    "crossOriginEmbedderPolicy": false, 
+    "crossOriginResourcePolicy": false,
+    "originAgentCluster": false 
+  },
 	"checkServerInterval": 30000,
 
-    "userSwitchMode": "DELETE",
+  "userSwitchMode": "DELETE",
     
 	"logLevel": ["INFO", "LOG", "WARN", "ERROR"],
 	"reloadAfterServerRestart": false,
@@ -18,7 +36,7 @@
 	"zoom": 1,
 	"customCss": "css/custom.css",
 
-    "rootConf": "root",
-    "clientConfigs": [],
-    "providedModules": ["clock", "dbbutton", "helloworld", "clientDisplay", "clientDetailes"]
+  "rootConf": "root",
+  "clientConfigs": [],
+  "providedModules": ["clock", "dbbutton", "helloworld", "clientDisplay", "clientDetailes"]
 }

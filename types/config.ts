@@ -3,7 +3,7 @@ export type UserSwitchMode = "DELETE" | "SAVE";
 export type LogLevel = "INFO" | "LOG" | "WARN" | "ERROR" | "DEBUG";
 
 export interface HttpHeaders {
-    contentSecurityPolicy: boolean;
+    contentSecurityPolicy: boolean | { directives: Record<string, string[]> };
     crossOriginOpenerPolicy: boolean;
     crossOriginEmbedderPolicy: boolean;
     crossOriginResourcePolicy: boolean;
