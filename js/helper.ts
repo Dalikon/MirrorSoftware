@@ -1,11 +1,11 @@
 import express from "express";
-import type { Server as SocketIOServer, Socket } from "socket.io";
+import type { Socket, Namespace } from "socket.io";
 
 class Helper {
     name!: string;
     path!: string;
-    expressApp!: express.Application;
-    socketio!: SocketIOServer;
+    expressApp!: express.Router;
+    socketio!: Namespace;
 
     constructor() {
         this.init();
@@ -33,7 +33,7 @@ class Helper {
     }
 
     sendSocketNotification(notification: string, payload: unknown): void {
-        this.socketio.of(this.name).emit(notification, payload);
+        this.socketio.emit(notification, payload);
     }
 
     setName(name: string): void {
@@ -44,17 +44,17 @@ class Helper {
         this.path = path;
     }
 
-    setExpressApp(app: express.Application): void {
+    setExpressApp(app: express.Router): void {
         this.expressApp = app;
-        this.expressApp.use(`/${this.name}`, express.static(`${this.path}/public`));
+        this.expressApp.use(express.static(`${this.path}/public`));
     }
 
-    setSocketIO(socketio: SocketIOServer): void {
+    setSocketIO(socketio: Namespace): void {
         this.socketio = socketio;
 
         console.log(`Connecting socketio for: ${this.name}`);
 
-        this.socketio.of(this.name).on("connection", (socket: Socket) => {
+        this.socketio.on("connection", (socket: Socket) => {
             // socket.onevent is an internal Socket.IO API used here to intercept
             // all events and re-emit them as "*" for catch-all handling in modules
             const s = socket as unknown as Record<string, unknown>;

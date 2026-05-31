@@ -22,7 +22,7 @@ class Client {
     loadedModules: string[] = [];
     users: string[] = [];
 
-    readonly defModules = ["clock", "dbbutton", "helloworld", "clientDisplay", "clientDetailes"];
+    readonly defModules = ["clock", "dbbutton", "clientDisplay", "clientDetailes"];
 
     readonly modulePositions: ModulePosition[] = [
         "top_bar", "top_left", "top_center", "top_right",

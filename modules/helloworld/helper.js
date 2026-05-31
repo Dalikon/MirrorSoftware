@@ -1,4 +1,4 @@
-const Helper = require('../../js/helper')
+const Helper = require('../../dist/js/helper').default
 
 class helloworldHelper extends Helper {
     loaded () {

@@ -1,0 +1,9 @@
+{
+    "name": "helloworld",
+    "helper": {
+        "permissions": ["express.route", "socket.namespace"]
+    },
+    "client": {
+        "permissions": ["user.name", "notifications.send"]
+    }
+}
