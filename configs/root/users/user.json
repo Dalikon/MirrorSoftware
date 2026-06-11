@@ -1,0 +1,17 @@
+{
+    "name": "user",
+    "modules": [
+        {
+            "module": "alert",
+            "position": "fullscreen_above"
+        },
+        {
+            "module": "helloworld",
+            "position": "middle_center",
+            "classes": "large thin",
+            "config": {
+                "text": "User Panel"
+            }
+        }
+    ]
+}

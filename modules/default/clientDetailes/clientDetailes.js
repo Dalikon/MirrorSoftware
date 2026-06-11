@@ -1,227 +1,222 @@
 class clientDetailes extends Module {
-    /*
-    start() {
-
-    }
-    */
-
     defaults() {
         this.userConfigs = [];
     }
 
     async showPopup(targetClient) {
-        //Use fetchConfig from (client).js to fetch the confing of a client that the detailes needs to be displayed
         this.clientConfig = await fetchClientConfig(targetClient.name);
         this.tClientData = targetClient;
 
-        // Remove existing popup if it exists
         const existingPopup = document.getElementById("popup");
-        if (existingPopup) {
-            existingPopup.remove();
-        }
+        if (existingPopup) existingPopup.remove();
 
-        // Create the popup container
         const popup = document.createElement("div");
         popup.id = "popup";
 
-        // Append the popup to the document body
-        let topLayer = document.getElementById("all-regions")
-        topLayer.appendChild(popup);
-
-        // Create the popup title
-        const popupTitle = document.createElement("h2");
-        popupTitle.textContent = this.tClientData.name;
-        popup.appendChild(popupTitle);
-
-        // Status of the client (offline/online)
-        const popupStatus = document.createElement("p");
-        popupStatus.textContent = `Status: ${this.tClientData.status}`;
-        popup.appendChild(popupStatus);
-
-        // all connection the client has
-        const connections = this.connectionsElement(this.tClientData);
-        popup.appendChild(connections);
-
-        //for every module add its info and controls to the popup
-        //create the div now and then search for it by id elsewhere
-        const moduleSettings = document.createElement("div");
-        moduleSettings.id = "moduleSettings";
-        popup.appendChild(moduleSettings);
-
-        //fill the div
-        this.moduleSettingsElement();
-
-        //button for every user with the one in use being highlighted
-        const usersDiv = await this.userButtonsElement(targetClient);
-        popup.appendChild(usersDiv);
-
-        // Add a close button
         const closeButton = document.createElement("button");
-        closeButton.textContent = "Close";
-        closeButton.id = "close-popup"
-        closeButton.addEventListener("click", () => {
-            popup.remove();
-        });
+        closeButton.id = "close-popup";
+        closeButton.textContent = "×";
+        closeButton.addEventListener("click", () => popup.remove());
         popup.appendChild(closeButton);
 
+        // Header: name + status
+        const header = document.createElement("div");
+        header.className = "popup-header";
+        const title = document.createElement("h2");
+        title.textContent = this.tClientData.name;
+        const statusBadge = document.createElement("span");
+        statusBadge.className = `popup-status ${this.tClientData.status}`;
+        statusBadge.textContent = this.tClientData.status;
+
+        let cursorVisible = false;
+        const cursorToggle = document.createElement("button");
+        cursorToggle.className = "popup-cursor-toggle";
+        cursorToggle.textContent = "cursor off";
+        cursorToggle.addEventListener("click", () => {
+            cursorVisible = !cursorVisible;
+            cursorToggle.textContent = cursorVisible ? "cursor on" : "cursor off";
+            cursorToggle.classList.toggle("active", cursorVisible);
+            trackerSocket.sendNotification("TOGGLE_CURSOR_X", { client: this.clientConfig.name, visible: cursorVisible });
+        });
+
+        header.appendChild(title);
+        header.appendChild(statusBadge);
+        header.appendChild(cursorToggle);
+        popup.appendChild(header);
+
+        // Connections section
+        const connectionsSection = document.createElement("div");
+        connectionsSection.className = "popup-section";
+        const connectionsLabel = document.createElement("h4");
+        connectionsLabel.className = "popup-section-label";
+        connectionsLabel.textContent = "Connections";
+        connectionsSection.appendChild(connectionsLabel);
+        connectionsSection.appendChild(this.connectionsElement(this.tClientData));
+        popup.appendChild(connectionsSection);
+
+        // Modules section
+        const modulesSection = document.createElement("div");
+        modulesSection.className = "popup-section";
+        const modulesLabel = document.createElement("h4");
+        modulesLabel.className = "popup-section-label";
+        modulesLabel.textContent = "Modules";
+        modulesSection.appendChild(modulesLabel);
+        const moduleSettings = document.createElement("div");
+        moduleSettings.id = "moduleSettings";
+        modulesSection.appendChild(moduleSettings);
+        popup.appendChild(modulesSection);
+        this.moduleSettingsElement(moduleSettings);
+
+        // Users section
+        const usersSection = document.createElement("div");
+        usersSection.className = "popup-section";
+        const usersLabel = document.createElement("h4");
+        usersLabel.className = "popup-section-label";
+        usersLabel.textContent = "Active user";
+        usersSection.appendChild(usersLabel);
+        const usersDiv = await this.userButtonsElement(targetClient);
+        usersSection.appendChild(usersDiv);
+        popup.appendChild(usersSection);
+
+        document.getElementById("all-regions").appendChild(popup);
         popup.classList.add("show");
     }
 
     connectionsElement(client) {
         const connectionsDiv = document.createElement("div");
-        for (let connection of client.connections) {
-            const connectionDiv = document.createElement("div");
+        connectionsDiv.className = "popup-connections";
 
-            const addressParagraph = document.createElement("p");
-            const addressSpan = document.createElement("span");
-            addressSpan.textContent = connection.ip;
-            addressParagraph.textContent = "Address: ";
-            addressParagraph.appendChild(addressSpan);
-            connectionDiv.appendChild(addressParagraph);
+        if (client.connections.length === 0) {
+            const none = document.createElement("p");
+            none.className = "popup-empty";
+            none.textContent = "No active connections";
+            connectionsDiv.appendChild(none);
+            return connectionsDiv;
+        }
 
-            const connectedAtParagraph = this.connectedElement(connection);
-            connectionDiv.appendChild(connectedAtParagraph);
+        for (const connection of client.connections) {
+            const row = document.createElement("div");
+            row.className = "connection-row";
 
-            connectionsDiv.appendChild(connectionDiv);
+            const ip = document.createElement("span");
+            ip.className = "connection-ip";
+            ip.textContent = connection.ip;
+            row.appendChild(ip);
+
+            const time = document.createElement("span");
+            time.className = "connection-time";
+            time.textContent = formatTime(connection.connectedAt);
+            row.appendChild(time);
+
+            connectionsDiv.appendChild(row);
         }
         return connectionsDiv;
     }
 
-    moduleSettingsElement() {
-        const moduleSettings = document.getElementById("moduleSettings");
+    moduleSettingsElement(moduleSettings = document.getElementById("moduleSettings")) {
         moduleSettings.innerHTML = "";
 
-        if (this.tClientData.user === "default") {
-            for (let [index, moduleConfig] of this.clientConfig.defaultModules.entries()) {
-                const moduleControl = this.moduleControlElement(this.clientConfig.name, moduleConfig, index);
-                moduleSettings.appendChild(moduleControl)
-            }
-        } else {
-            let userConfig = this.userConfigs.find((config) => config.name === this.tClientData.user);
-            for (let [index, moduleConfig] of userConfig.modules.entries()) {
-                const moduleControl = this.moduleControlElement(this.clientConfig.name, moduleConfig, index);
-                moduleSettings.appendChild(moduleControl)
-            }
+        const modules = this.tClientData.user === "default"
+            ? this.clientConfig.defaultModules
+            : (this.userConfigs.find(c => c.name === this.tClientData.user)?.modules ?? []);
+
+        for (const [index, moduleConfig] of modules.entries()) {
+            moduleSettings.appendChild(this.moduleControlElement(this.clientConfig.name, moduleConfig, index));
         }
     }
 
     moduleControlElement(clientName, moduleConfig, index) {
         const moduleID = `${moduleConfig.module}_${index}`;
 
-        const moduleDiv = document.createElement("div")
-        moduleDiv.classList.add("popupModule")
+        const row = document.createElement("div");
+        row.className = "popup-module";
 
-        //name of the module
-        const moduleName = document.createElement("h3");
-        moduleName.textContent = moduleConfig.module;
-        moduleDiv.appendChild(moduleName);
+        const info = document.createElement("div");
+        info.className = "popup-module-info";
+        const name = document.createElement("span");
+        name.className = "popup-module-name";
+        name.textContent = moduleConfig.module;
+        const pos = document.createElement("span");
+        pos.className = "popup-module-pos";
+        pos.textContent = moduleConfig.position ?? "";
+        info.appendChild(name);
+        info.appendChild(pos);
+        row.appendChild(info);
 
-        //position of module
-        const modulePos = document.createElement("p");
-        modulePos.textContent = moduleConfig.position;
-        moduleDiv.appendChild(modulePos);
+        const actions = document.createElement("div");
+        actions.className = "popup-module-actions";
 
-        //button to hide the module. Afer use, it will transform to show.
-        const hideShowButton = document.createElement("button");
-        hideShowButton.textContent = "Hide";
-        hideShowButton.addEventListener("click", () => {
-            if (hideShowButton.textContent === "Hide") {
-                trackerSocket.sendNotification("HIDE_MODULE_X", {module: moduleConfig.module, id: moduleID, client: clientName})
-                hideShowButton.textContent = "Show";
+        const hideShowBtn = document.createElement("button");
+        hideShowBtn.className = "popup-btn";
+        hideShowBtn.textContent = "Hide";
+        hideShowBtn.addEventListener("click", () => {
+            if (hideShowBtn.textContent === "Hide") {
+                trackerSocket.sendNotification("HIDE_MODULE_X", { module: moduleConfig.module, id: moduleID, client: clientName });
+                hideShowBtn.textContent = "Show";
             } else {
-                trackerSocket.sendNotification("SHOW_MODULE_X", {module: moduleConfig.module, id: moduleID, client: clientName})
-                hideShowButton.textContent = "Hide";
+                trackerSocket.sendNotification("SHOW_MODULE_X", { module: moduleConfig.module, id: moduleID, client: clientName });
+                hideShowBtn.textContent = "Hide";
             }
         });
-        moduleDiv.appendChild(hideShowButton);
 
-        //button to suspend the module. After use, it will transform to resume.
-        const susResButton = document.createElement("button");
-        susResButton.textContent = "Suspend";
-        susResButton.addEventListener("click", () => {
-            if (susResButton.textContent === "Suspend") {
-                trackerSocket.sendNotification("SUSPEND_MODULE_X", {module: moduleConfig.module, id: moduleID, client: clientName})
-                susResButton.textContent = "Resume";
+        const susResBtn = document.createElement("button");
+        susResBtn.className = "popup-btn";
+        susResBtn.textContent = "Suspend";
+        susResBtn.addEventListener("click", () => {
+            if (susResBtn.textContent === "Suspend") {
+                trackerSocket.sendNotification("SUSPEND_MODULE_X", { module: moduleConfig.module, id: moduleID, client: clientName });
+                susResBtn.textContent = "Resume";
             } else {
-                trackerSocket.sendNotification("RESUME_MODULE_X", {module: moduleConfig.module, id: moduleID, client: clientName})
-                susResButton.textContent = "Suspend";
+                trackerSocket.sendNotification("RESUME_MODULE_X", { module: moduleConfig.module, id: moduleID, client: clientName });
+                susResBtn.textContent = "Suspend";
             }
         });
-        moduleDiv.appendChild(susResButton);
 
-        return moduleDiv;
+        actions.appendChild(hideShowBtn);
+        actions.appendChild(susResBtn);
+        row.appendChild(actions);
+
+        return row;
     }
 
     async userButtonsElement(tClient) {
         const container = document.createElement("div");
+        container.className = "popup-user-buttons";
 
-        for (let user of this.clientConfig.users) {
-            const userButton = await this.userElement(user, this.clientConfig.name);
-            if (user === tClient.user) {
-                userButton.style.backgroundColor = "blue";
-                userButton.classList.add("active");
+        const allUsers = ["default", ...this.clientConfig.users];
+
+        for (const user of allUsers) {
+            if (user !== "default") {
+                await this.fetchAndStoreUserConfig(this.clientConfig.name, user);
             }
-            container.appendChild(userButton);
+            const btn = document.createElement("button");
+            btn.className = "popup-user-btn" + (user === tClient.user ? " active" : "");
+            btn.textContent = user;
+            container.appendChild(btn);
         }
-
-        const defaultUser = document.createElement("button");
-        defaultUser.textContent = "default";
-        if (tClient.user === "default") {
-            defaultUser.style.backgroundColor = "blue";
-            defaultUser.classList.add("active");
-        }
-        container.appendChild(defaultUser);
 
         container.addEventListener("click", (event) => {
-            if (event.target.tagName === "BUTTON") {
-                if (event.target.classList.contains("active")) {
-                    return;
-                }
+            if (event.target.tagName !== "BUTTON") return;
+            if (event.target.classList.contains("active")) return;
 
-                // Find the currently active button inside the container
-                const activeButton = container.querySelector(".active");
+            container.querySelector(".active")?.classList.remove("active");
+            event.target.classList.add("active");
 
-                if (activeButton) {
-                    activeButton.classList.remove("active");
-                    activeButton.style.backgroundColor = ""; // Reset to default
-                }
-
-                event.target.classList.add("active");
-                event.target.style.backgroundColor = "blue";
-
-                this.chageModuleSettings(event.target.textContent);
-
-                console.log(`Sending notification to change user to ${event.target.textContent} on ${this.clientConfig.name}`)
-                trackerSocket.sendNotification("CHANGE_USER_X", {client: this.clientConfig.name, user: event.target.textContent})
-            }
+            this.changeModuleSettings(event.target.textContent);
+            trackerSocket.sendNotification("CHANGE_USER_X", { client: this.clientConfig.name, user: event.target.textContent });
         });
 
         return container;
     }
 
-    async userElement(user, client) {
-        const userConfig = await fetchUserConfig(client, user);
-        this.userConfigs.push(userConfig);
-
-        const userButton = document.createElement("button");
-        userButton.textContent = user;
-
-        return userButton;
+    async fetchAndStoreUserConfig(client, user) {
+        if (this.userConfigs.find(c => c.name === user)) return;
+        const config = await fetchUserConfig(client, user);
+        this.userConfigs.push(config);
     }
 
-
-    connectedElement(client) {
-        let connectedAt = formatTime(client.connectedAt);
-        const connectedAtParagraph = document.createElement("p");
-        const connectedAtSpan = document.createElement("span");
-        connectedAtSpan.textContent = connectedAt;
-        connectedAtParagraph.textContent = "Connected: ";
-        connectedAtParagraph.appendChild(connectedAtSpan);
-        return connectedAtParagraph;
-    }
-
-    chageModuleSettings(userName) {
-        this.tClientData.user = userName
+    changeModuleSettings(userName) {
+        this.tClientData.user = userName;
         this.moduleSettingsElement();
     }
 

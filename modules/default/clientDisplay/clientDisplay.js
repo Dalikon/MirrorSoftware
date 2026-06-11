@@ -1,34 +1,27 @@
 class clientDisplay extends Module {
-    async start() {
-        setInterval(() => {this.updateDom()}, 3000)
-    }
-
     async defaults() {
         this.defaults = {};
         this.rootSocket = trackerSocket.socket;
     }
 
-    //retrieve trackers from server
+    async start() {
+        // Real-time push updates from server (connect / disconnect events)
+        this.rootSocket.on("trackersData", (trackers) => {
+            this.trackedC = trackers;
+            this.updateDom();
+        });
+    }
+
+    // Fetches tracker data once for the initial render; subsequent updates come via push.
     async getTrackers() {
-        try {
-            await new Promise((resolve, reject) => {
-                this.rootSocket.emit("retrieveTrackers");
-
-                this.rootSocket.once("trackersData", (trackers) => {
-
-                    if (trackers) {
-                        console.debug("Received trackers from server");
-                        this.trackedC = trackers;
-                        resolve();  // Resolve the promise when trackers data is received
-                    } else {
-                        reject(new Error("Failed to retrieve trackers"));
-                    }
-                });
+        if (this.trackedC) return;
+        await new Promise((resolve) => {
+            this.rootSocket.once("trackersData", (trackers) => {
+                this.trackedC = trackers;
+                resolve();
             });
-        } catch (error) {
-            console.error("Error preloading trackers:", error);
-            this.trackedC = []; // Default to an empty array on failure
-        }
+            this.rootSocket.emit("retrieveTrackers");
+        });
     }
 
 

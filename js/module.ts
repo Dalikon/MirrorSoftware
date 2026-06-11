@@ -1,6 +1,7 @@
 import { ClientSocket } from "./clientSocket.js";
 import { getClient } from "./clientState.js";
 import type { ModulePosition, ModuleInfo } from "../types/module.js";
+import type { ClientPermission } from "../types/index.js";
 
 export class Module {
     config: Record<string, unknown> = {};
@@ -14,6 +15,7 @@ export class Module {
     socket?: ClientSocket;
     showHideTimer?: ReturnType<typeof setTimeout>;
     mInfo?: ModuleInfo;
+    private permissions: Set<ClientPermission> = new Set();
 
     constructor() {
         // Calls defaults() which subclasses override to set this.defaults = { ... }.
@@ -118,6 +120,18 @@ export class Module {
         }
 
         getClient().showModule(this, speed, () => { this.resume(); usedCallback(); }, usedOptions);
+    }
+
+    file(filename: string): string {
+        return (this.data["path"] as string) + filename;
+    }
+
+    setPermissions(perms: ClientPermission[]): void {
+        this.permissions = new Set(perms);
+    }
+
+    hasPermission(perm: ClientPermission): boolean {
+        return this.permissions.has(perm);
     }
 
     setConfig(config: Record<string, unknown>): void {

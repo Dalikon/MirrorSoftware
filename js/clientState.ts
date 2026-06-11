@@ -1,4 +1,5 @@
 import type { ClientConfig, ModuleDefinition } from "../types/module.js";
+import type { SessionInfo } from "../types/index.js";
 
 export interface ActiveConfig {
     name: string;
@@ -41,3 +42,7 @@ export function getConfigInUse(): ActiveConfig {
 
 export function setFreshRegions(r: string): void { _freshRegions = r; }
 export function getFreshRegions(): string { return _freshRegions; }
+
+let _session: SessionInfo | null = null;
+export function setSession(s: SessionInfo | null): void { _session = s; }
+export function getSession(): SessionInfo | null { return _session; }

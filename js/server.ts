@@ -8,10 +8,12 @@ import helmet from "helmet";
 import { Server as SocketIOServer, Socket as SocketIOSocket } from "socket.io";
 
 import ClientTracker from "./clientTracker.js";
+import { AuthService, COOKIE_NAME } from "./authService.js";
 import type { ServerConfig } from "../types/config.js";
 import type {
   ModuleSocketPayload,
   UserSocketPayload,
+  CursorSocketPayload,
 } from "../types/socket.js";
 
 class Server {
@@ -23,6 +25,7 @@ class Server {
   clientMap: Map<string, SocketIOSocket>;
   trackedClients: ClientTracker[];
   io!: SocketIOServer;
+  auth!: AuthService;
 
   constructor(config: ServerConfig) {
     this.app = express();
@@ -102,16 +105,23 @@ class Server {
     try {
       const data = fs.readFileSync("./workData/cTracker.json", "utf8");
       const tracked: unknown[] = JSON.parse(data);
-      this.trackedClients = tracked.map((obj) =>
-        ClientTracker.fromObject(
+      this.trackedClients = tracked.map((obj) => {
+        const tracker = ClientTracker.fromObject(
           obj as Parameters<typeof ClientTracker.fromObject>[0],
-        ),
-      );
+        );
+        tracker.status = "offline";
+        tracker.connections = [];
+        return tracker;
+      });
       console.log("Client tracker data loaded.");
     } catch (error) {
       console.error("Error loading cTracker.json:", (error as Error).message);
       this.trackedClients = [];
     }
+  }
+
+  pushTrackersToRoot(): void {
+    this.clientMap.get(this.config.rootConf)?.emit("trackersData", this.trackedClients);
   }
 
   trackerSetup(): void {
@@ -149,6 +159,7 @@ class Server {
         JSON.stringify(this.trackedClients, null, 2),
         "utf8",
       );
+      this.pushTrackersToRoot();
 
       let missedHeartbeats = 0;
 
@@ -210,6 +221,10 @@ class Server {
         this.clientMap.get(payload.client)?.emit("RESUME_MODULE_Y", payload);
       });
 
+      socket.on("TOGGLE_CURSOR_X", (payload: CursorSocketPayload) => {
+        this.clientMap.get(payload.client)?.emit("TOGGLE_CURSOR_Y", payload);
+      });
+
       socket.on("CHANGE_USER_X", (payload: UserSocketPayload) => {
         console.log(payload);
         const editClient = this.trackedClients.find(
@@ -238,7 +253,47 @@ class Server {
           "utf8",
         );
         clearTimeout(heartbeatTimer);
+        this.pushTrackersToRoot();
       });
+    });
+  }
+
+  authEndpoints(): void {
+    const rootDir = path.resolve(__dirname, "../..");
+    const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+
+    this.app.get("/login", (_req, res) => {
+      res.sendFile(path.resolve(rootDir, "public/login.html"));
+    });
+
+    this.app.post("/auth/login", (req, res) => {
+      const { username, password } = req.body as { username?: string; password?: string };
+      if (!username || !password) {
+        res.status(400).json({ error: "Username and password required" });
+        return;
+      }
+      const session = this.auth.login(username, password);
+      if (!session) {
+        res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+      res.setHeader("Set-Cookie", `${COOKIE_NAME}=${session.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${COOKIE_MAX_AGE}`);
+      res.json({ username: session.username, displayName: session.displayName, role: session.role });
+    });
+
+    this.app.post("/auth/logout", (req, res) => {
+      const token = this.auth.parseCookie(req.headers.cookie, COOKIE_NAME);
+      if (token) this.auth.logout(token);
+      res.setHeader("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+      res.json({ ok: true });
+    });
+
+    this.app.get("/auth/me", (req, res) => {
+      const token = this.auth.parseCookie(req.headers.cookie, COOKIE_NAME);
+      if (!token) { res.status(401).json({ error: "Not authenticated" }); return; }
+      const session = this.auth.getSession(token);
+      if (!session) { res.status(401).json({ error: "Session expired" }); return; }
+      res.json(session);
     });
   }
 
@@ -258,6 +313,12 @@ class Server {
       this.io = new SocketIOServer(this.server, {
         cors: { origin: /.*$/, credentials: true },
       });
+
+      this.app.use(express.json());
+
+      this.auth = new AuthService(path.resolve(__dirname, "../.."));
+
+      this.authEndpoints();
 
       this.app.use(
         helmet({

@@ -1,0 +1,9 @@
+[
+  {
+    "username": "admin",
+    "displayName": "Admin",
+    "role": "admin",
+    "passwordHash": "e145ff9dada7a54ceaa095ac6d9e884c2dc75f19aebee34d67985cd31610bb6c43f9f5a80988f806857fdb9ef6dade69fdd8bfe2aaf68bbeeed4f44cad985eb5",
+    "salt": "b03dd15981b69dcfeaf4edf75fa8dc98"
+  }
+]

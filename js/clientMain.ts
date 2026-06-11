@@ -4,9 +4,12 @@ import { UserService } from "./UserService.js";
 import { resetDOM, fetchConfig, fetchClientConfig, fetchUserConfig, formatTime } from "./utils.js";
 import {
     setClient, setClientConfig, setConfigInUse, setFreshRegions,
-    getConfigInUse, type ActiveConfig
+    getConfigInUse, setSession, type ActiveConfig
 } from "./clientState.js";
+import type { SessionInfo } from "../types/index.js";
+import type { UserConfig } from "../types/module.js";
 import type { ClientConfig, ModuleInfo, ModulePosition } from "../types/module.js";
+import type { ClientPermission, ModuleManifest } from "../types/index.js";
 
 // Expose base classes and utilities on window for dynamically loaded module JS files
 (window as unknown as Record<string, unknown>)["Module"] = Module;
@@ -22,7 +25,7 @@ class Client {
     loadedModules: string[] = [];
     users: string[] = [];
 
-    readonly defModules = ["clock", "dbbutton", "clientDisplay", "clientDetailes"];
+    readonly defModules = ["clock", "dbbutton", "clientDisplay", "clientDetailes", "alert"];
 
     readonly modulePositions: ModulePosition[] = [
         "top_bar", "top_left", "top_center", "top_right",
@@ -147,7 +150,44 @@ class Client {
         return moduleFolder + "node_modules/" + packageName + "/" + script;
     }
 
+    async fetchManifest(moduleInfo: ModuleInfo): Promise<ClientPermission[] | null> {
+        const knownPermissions = new Set<ClientPermission>([
+            "geo.location", "notifications.send", "camera", "microphone",
+            "network.http", "network.ws", "user.name", "user.switch",
+        ]);
+
+        let manifest: ModuleManifest;
+        try {
+            const res = await fetch(moduleInfo.folder + "module.json");
+            if (!res.ok) {
+                console.warn(`[Security] ${moduleInfo.name}: module.json missing — module will not load`);
+                return null;
+            }
+            manifest = await res.json() as ModuleManifest;
+        } catch {
+            console.warn(`[Security] ${moduleInfo.name}: failed to fetch module.json — module will not load`);
+            return null;
+        }
+
+        const declared = manifest.client?.permissions ?? [];
+        const unknown = declared.filter(p => !knownPermissions.has(p));
+        if (unknown.length > 0) {
+            console.warn(`[Security] ${moduleInfo.name}: unknown client permissions [${unknown.join(", ")}] — module will not load`);
+            return null;
+        }
+
+        console.log(`[Security] ${moduleInfo.name}: client permissions granted [${declared.join(", ") || "none"}]`);
+        return declared;
+    }
+
     async loadModule(moduleInfo: ModuleInfo): Promise<void> {
+        let permissions: ClientPermission[] = [];
+        if (!this.defModules.includes(moduleInfo.name)) {
+            const granted = await this.fetchManifest(moduleInfo);
+            if (granted === null) return;
+            permissions = granted;
+        }
+
         const url = moduleInfo.folder + moduleInfo.file;
         await this.loadFile(url, "module");
 
@@ -157,6 +197,8 @@ class Client {
             return;
         }
         const module = new ModuleClass();
+        module.setData(moduleInfo);
+        module.setPermissions(permissions);
 
         for (const script of module.getScripts()) {
             await this.loadFile(this.resolveScriptUrl(script, moduleInfo.folder), "script");
@@ -168,8 +210,6 @@ class Client {
                 : moduleInfo.folder + style;
             await this.loadFile(styleUrl, "style");
         }
-
-        module.setData(moduleInfo);
         this.moduleObjs.push(module);
         console.log(`Module loaded: ${module.name}`);
     }
@@ -283,6 +323,10 @@ function setupTrackerSocket(tracker: ClientSocket): void {
         const userService = (window as unknown as Record<string, UserService>)["_userService"];
         userService?.changeUser(payload.user);
     });
+
+    tracker.socket.on("TOGGLE_CURSOR_Y", (payload: { visible: boolean }) => {
+        document.documentElement.style.cursor = payload.visible ? "default" : "";
+    });
 }
 
 async function startClient(): Promise<void> {
@@ -290,7 +334,29 @@ async function startClient(): Promise<void> {
         const clientConfig = await fetchConfig() as ClientConfig;
         setClientConfig(clientConfig);
 
-        const configInUse: ActiveConfig = { name: clientConfig.name, modules: clientConfig.defaultModules };
+        let initialModules = clientConfig.defaultModules;
+
+        if (clientConfig.type === "dashboard") {
+            const sessionRes = await fetch("/auth/me");
+            if (!sessionRes.ok) {
+                window.location.href = "/login";
+                return;
+            }
+            const session = await sessionRes.json() as SessionInfo;
+            setSession(session);
+
+            const roleRes = await fetch(`/get-user/${session.role}`, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: clientConfig.name,
+            });
+            if (roleRes.ok) {
+                const roleConfig = await roleRes.json() as UserConfig;
+                initialModules = roleConfig.modules;
+            }
+        }
+
+        const configInUse: ActiveConfig = { name: clientConfig.name, modules: initialModules };
         setConfigInUse(configInUse);
 
         const freshRegions = document.getElementById("all-regions")?.innerHTML ?? "";

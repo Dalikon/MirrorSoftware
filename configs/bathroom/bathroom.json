@@ -5,6 +5,10 @@
     "users":["Dala", "Maku", "User"],
     "defaultModules": [
         {
+            "module": "alert",
+            "position": "fullscreen_above"
+        },
+        {
 			"module": "clock",
 			"position": "top_left"
 		},

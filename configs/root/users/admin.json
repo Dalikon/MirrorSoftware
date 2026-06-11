@@ -1,0 +1,28 @@
+{
+    "name": "admin",
+    "modules": [
+        {
+            "module": "alert",
+            "position": "fullscreen_above"
+        },
+        {
+            "module": "helloworld",
+            "position": "top_center",
+            "classes": "large thin",
+            "config": {
+                "text": "Admin Panel"
+            }
+        },
+        {
+            "module": "clientDisplay",
+            "position": "middle_center",
+            "classes": "small bright",
+            "config": {}
+        },
+        {
+            "module": "clientDetailes",
+            "position": "bottom_bar",
+            "config": {}
+        }
+    ]
+}

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HA-Mirrors — Login</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: "Roboto Condensed", "Helvetica Neue", sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 360px;
+            padding: 2.5rem 2rem;
+        }
+
+        h1 {
+            font-size: 1.1rem;
+            font-weight: 300;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #aaa;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .field {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 0.4rem;
+        }
+
+        input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #333;
+            color: #fff;
+            font-size: 1rem;
+            padding: 0.4rem 0;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus { border-bottom-color: #fff; }
+
+        button {
+            margin-top: 1.8rem;
+            width: 100%;
+            background: transparent;
+            border: 1px solid #444;
+            color: #fff;
+            font-size: 0.8rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        button:hover { border-color: #fff; }
+        button:disabled { opacity: 0.4; cursor: default; }
+
+        .error {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: #c0392b;
+            text-align: center;
+            min-height: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>HA-Mirrors</h1>
+        <form id="form">
+            <div class="field">
+                <label for="username">Username</label>
+                <input id="username" name="username" type="text" autocomplete="username" autofocus required>
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" id="btn">Sign in</button>
+            <p class="error" id="error"></p>
+        </form>
+    </div>
+    <script>
+        document.getElementById("form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById("btn");
+            const errorEl = document.getElementById("error");
+            btn.disabled = true;
+            errorEl.textContent = "";
+
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            try {
+                const res = await fetch("/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                if (res.ok) {
+                    window.location.href = "/root";
+                } else {
+                    const data = await res.json();
+                    errorEl.textContent = data.error ?? "Login failed";
+                    btn.disabled = false;
+                }
+            } catch {
+                errorEl.textContent = "Could not reach the server";
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
