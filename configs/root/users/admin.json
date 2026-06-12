@@ -23,6 +23,11 @@
             "module": "clientDetailes",
             "position": "bottom_bar",
             "config": {}
+        },
+        {
+            "module": "userManager",
+            "position": "lower_third",
+            "config": {}
         }
     ]
 }

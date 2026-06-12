@@ -64,6 +64,188 @@ class Server {
     });
   }
 
+  userEndpoints(): void {
+    const rootDir = path.resolve(__dirname, "../..");
+
+    const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+      const token = this.auth.parseCookie(req.headers.cookie, COOKIE_NAME);
+      if (!token) { res.status(401).json({ error: "Not authenticated" }); return; }
+      const session = this.auth.getSession(token);
+      if (!session) { res.status(401).json({ error: "Session expired" }); return; }
+      (req as express.Request & { sessionInfo: typeof session }).sessionInfo = session;
+      next();
+    };
+
+    const readUserConfig = (username: string, clientName?: string): object => {
+      if (clientName) {
+        const clientPath = path.join(rootDir, "configs", clientName, "users", `${username}.json`);
+        if (fs.existsSync(clientPath)) return JSON.parse(fs.readFileSync(clientPath, "utf8")) as object;
+      }
+      const globalPath = path.join(rootDir, "configs/users", `${username}.json`);
+      if (fs.existsSync(globalPath)) return JSON.parse(fs.readFileSync(globalPath, "utf8")) as object;
+      return { name: username, modules: [] };
+    };
+
+    const writeUserConfig = (username: string, modules: unknown[], clientName?: string): void => {
+      const filePath = clientName
+        ? path.join(rootDir, "configs", clientName, "users", `${username}.json`)
+        : path.join(rootDir, "configs/users", `${username}.json`);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, JSON.stringify({ name: username, modules }, null, 2));
+    };
+
+    this.app.get("/user/config", requireAuth, (req, res) => {
+      const { username } = (req as express.Request & { sessionInfo: { username: string } }).sessionInfo;
+      try { res.json(readUserConfig(username)); } catch { res.status(500).json({ error: "Failed to read config" }); }
+    });
+
+    this.app.get("/user/config/:client", requireAuth, (req, res) => {
+      const { username } = (req as express.Request & { sessionInfo: { username: string } }).sessionInfo;
+      const clientName = req.params["client"] as string;
+      try { res.json(readUserConfig(username, clientName)); } catch { res.status(500).json({ error: "Failed to read config" }); }
+    });
+
+    this.app.get("/user/clients", requireAuth, (req, res) => {
+      const { username } = (req as express.Request & { sessionInfo: { username: string } }).sessionInfo;
+      const assigned = this.config.clientConfigs.filter(name => {
+        try {
+          const cfg = JSON.parse(fs.readFileSync(path.join(rootDir, "configs", name, `${name}.json`), "utf8")) as { users?: string[] };
+          return (cfg.users ?? []).includes(username);
+        } catch { return false; }
+      });
+      res.json(assigned);
+    });
+
+    this.app.get("/user/modules/available", requireAuth, (_req, res) => {
+      const adminOnly = new Set(["alert", "clientDetailes", "clientDisplay", "userManager", "personalization"]);
+      const userDefaultModules = ["clock", "dbbutton"].filter(m => !adminOnly.has(m));
+
+      let thirdParty: string[] = [];
+      try {
+        const modulesDir = path.join(rootDir, "modules");
+        thirdParty = fs.readdirSync(modulesDir).filter(name => {
+          if (name === "default") return false;
+          return fs.statSync(path.join(modulesDir, name)).isDirectory();
+        });
+      } catch { /* no modules dir */ }
+
+      res.json([...userDefaultModules, ...thirdParty]);
+    });
+
+    this.app.put("/user/config", requireAuth, (req, res) => {
+      const { username } = (req as express.Request & { sessionInfo: { username: string } }).sessionInfo;
+      const body = req.body as { modules?: unknown };
+      if (!Array.isArray(body.modules)) { res.status(400).json({ error: "modules must be an array" }); return; }
+      try { writeUserConfig(username, body.modules as unknown[]); res.json({ ok: true }); }
+      catch { res.status(500).json({ error: "Failed to save config" }); }
+    });
+
+    this.app.put("/user/config/:client", requireAuth, (req, res) => {
+      const { username } = (req as express.Request & { sessionInfo: { username: string } }).sessionInfo;
+      const clientName = req.params["client"] as string;
+      const body = req.body as { modules?: unknown };
+      if (!Array.isArray(body.modules)) { res.status(400).json({ error: "modules must be an array" }); return; }
+      try { writeUserConfig(username, body.modules as unknown[], clientName); res.json({ ok: true }); }
+      catch { res.status(500).json({ error: "Failed to save config" }); }
+    });
+  }
+
+  adminEndpoints(): void {
+    const rootDir = path.resolve(__dirname, "../..");
+
+    const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+      const token = this.auth.parseCookie(req.headers.cookie, COOKIE_NAME);
+      if (!token) { res.status(401).json({ error: "Not authenticated" }); return; }
+      const session = this.auth.getSession(token);
+      if (!session) { res.status(401).json({ error: "Session expired" }); return; }
+      if (session.role !== "admin") { res.status(403).json({ error: "Admin required" }); return; }
+      next();
+    };
+
+    this.app.get("/admin/users", requireAdmin, (_req, res) => {
+      res.json(this.auth.listAccounts());
+    });
+
+    this.app.post("/admin/users", requireAdmin, (req, res) => {
+      const { username, displayName, role, password } = req.body as Record<string, string>;
+      if (!username || !displayName || !role || !password) {
+        res.status(400).json({ error: "All fields required" }); return;
+      }
+      try {
+        this.auth.createAccount(username, displayName, role as "admin" | "user", password);
+        // Auto-create global mirror config if it doesn't exist
+        const configPath = path.join(rootDir, "configs/users", `${username}.json`);
+        if (!fs.existsSync(configPath)) {
+          fs.mkdirSync(path.dirname(configPath), { recursive: true });
+          fs.writeFileSync(configPath, JSON.stringify({ name: username, modules: [] }, null, 2));
+        }
+        res.status(201).json({ ok: true });
+      } catch (e) {
+        res.status(409).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.patch("/admin/users/:username", requireAdmin, (req, res) => {
+      try {
+        this.auth.updateAccount(req.params["username"] as string, req.body as { displayName?: string; role?: "admin" | "user"; password?: string });
+        res.json({ ok: true });
+      } catch (e) {
+        res.status(404).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.delete("/admin/users/:username", requireAdmin, (req, res) => {
+      const username = req.params["username"] as string;
+      try {
+        this.auth.deleteAccount(username);
+        // Remove from all client users lists
+        for (const clientName of this.config.clientConfigs) {
+          const cfgPath = path.join(rootDir, "configs", clientName, `${clientName}.json`);
+          try {
+            const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")) as { users?: string[] };
+            if (cfg.users?.includes(username)) {
+              cfg.users = cfg.users.filter(u => u !== username);
+              fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+            }
+          } catch { /* ignore unreadable configs */ }
+        }
+        res.json({ ok: true });
+      } catch (e) {
+        res.status(404).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get("/admin/clients", requireAdmin, (_req, res) => {
+      const clients = this.config.clientConfigs.map(name => {
+        const configPath = path.join(rootDir, "configs", name, `${name}.json`);
+        let users: string[] = [];
+        try {
+          users = (JSON.parse(fs.readFileSync(configPath, "utf8")) as { users?: string[] }).users ?? [];
+        } catch { /* ignore unreadable configs */ }
+        return { name, users };
+      });
+      res.json(clients);
+    });
+
+    this.app.put("/admin/clients/:client/users", requireAdmin, (req, res) => {
+      const clientName = req.params["client"] as string;
+      if (!this.config.clientConfigs.includes(clientName)) {
+        res.status(404).json({ error: "Client not found" }); return;
+      }
+      const { users } = req.body as { users?: string[] };
+      if (!Array.isArray(users)) { res.status(400).json({ error: "users must be an array" }); return; }
+      const configPath = path.join(rootDir, "configs", clientName, `${clientName}.json`);
+      try {
+        const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
+        config.users = users;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        res.json({ ok: true });
+      } catch {
+        res.status(500).json({ error: "Failed to update client config" });
+      }
+    });
+  }
+
   userServiceEndpoints(): void {
     this.app.post("/get-user/:userName", (req, res) => {
       const userName = req.params.userName;
@@ -319,6 +501,8 @@ class Server {
       this.auth = new AuthService(path.resolve(__dirname, "../.."));
 
       this.authEndpoints();
+      this.userEndpoints();
+      this.adminEndpoints();
 
       this.app.use(
         helmet({

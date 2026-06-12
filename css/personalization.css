@@ -1,0 +1,262 @@
+/* personalization module */
+
+.pers-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pers-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pers-header-btns {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pers-scope-select {
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: var(--font-size-xsmall);
+  padding: 0.2rem 0.4rem;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.pers-scope-select:focus {
+  border-color: var(--panel-accent);
+}
+
+.pers-scope-select option {
+  background: #1e1e1e;
+}
+
+.pers-title {
+  margin: 0;
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dimmed);
+}
+
+.pers-save-btn {
+  border-color: var(--panel-accent) !important;
+  color: var(--panel-accent) !important;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.pers-save-btn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.1) !important;
+}
+
+.pers-save-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pers-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.25rem;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.pers-row:hover {
+  background: #1e1e1e;
+}
+
+.pers-reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.pers-arrow {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid #2e2e2e;
+  border-radius: 4px;
+  color: var(--color-text-dimmed);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+  padding: 0;
+}
+
+.pers-arrow:hover:not(:disabled) {
+  border-color: #555;
+  color: var(--color-text-bright);
+}
+
+.pers-arrow:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.pers-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.pers-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pers-name {
+  font-size: var(--font-size-small);
+  color: var(--color-text-bright);
+  white-space: nowrap;
+  min-width: 6rem;
+}
+
+.pers-pos-select {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: var(--color-text);
+  font-size: var(--font-size-xsmall);
+  padding: 0.15rem 0;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.pers-pos-select:focus {
+  border-bottom-color: var(--color-text-bright);
+}
+
+.pers-pos-select option {
+  background: #1e1e1e;
+}
+
+.pers-hidden {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--font-size-xsmall);
+  color: var(--color-text-dimmed);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pers-del {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem !important;
+  color: var(--color-text-dimmed) !important;
+  border-color: transparent !important;
+  font-size: 1rem;
+}
+
+.pers-del:hover {
+  color: #f87171 !important;
+  border-color: rgba(248, 113, 113, 0.3) !important;
+}
+
+.pers-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  padding: 0.4rem 0 0.2rem 0.25rem;
+  border-left: 2px solid #222;
+  margin-left: 0.1rem;
+}
+
+.pers-config-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pers-config-label {
+  font-size: var(--font-size-xsmall);
+  color: var(--color-text-dimmed);
+  white-space: nowrap;
+}
+
+.pers-config-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: var(--color-text-bright);
+  font-size: var(--font-size-xsmall);
+  padding: 0.1rem 0;
+  outline: none;
+  width: 8rem;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.pers-config-input:focus {
+  border-bottom-color: var(--color-text-bright);
+}
+
+.pers-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.pers-empty-hint {
+  font-size: var(--font-size-xsmall);
+  color: var(--color-text-dimmed);
+  margin: 0;
+}
+
+.pers-add-form {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background: #1e1e1e;
+  margin-top: 4px;
+}
+
+.pers-add-confirm {
+  border-color: var(--panel-accent) !important;
+  color: var(--panel-accent) !important;
+}
+
+.pers-add-confirm:hover {
+  background: rgba(59, 130, 246, 0.1) !important;
+}

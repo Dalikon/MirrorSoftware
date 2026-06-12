@@ -1,0 +1,70 @@
+/* clientDisplay module — mirror status cards */
+
+#client-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.client-div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 200px;
+  padding: 1rem 1.25rem;
+  background: #141414;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  transition: border-color 0.15s, transform 0.15s;
+  cursor: default;
+}
+
+.client-div:hover {
+  border-color: #3a3a3a;
+  transform: translateY(-1px);
+}
+
+.client-div h4 {
+  margin: 0 0 0.4rem;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-text-bright);
+}
+
+.client-div p {
+  margin: 0.25rem 0;
+  font-size: var(--font-size-xsmall);
+  color: var(--color-text-dimmed);
+}
+
+.client-div span {
+  font-weight: 500;
+}
+
+.client-div span.online {
+  color: #4ade80;
+}
+
+.client-div span.offline {
+  color: #f87171;
+}
+
+.client-div button,
+.view-client {
+  margin-top: 0.75rem;
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: var(--font-size-xsmall);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.client-div button:hover,
+.view-client:hover {
+  border-color: var(--color-text-bright);
+  color: var(--color-text-bright);
+}

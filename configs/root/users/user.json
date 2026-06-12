@@ -6,12 +6,9 @@
             "position": "fullscreen_above"
         },
         {
-            "module": "helloworld",
+            "module": "personalization",
             "position": "middle_center",
-            "classes": "large thin",
-            "config": {
-                "text": "User Panel"
-            }
+            "config": {}
         }
     ]
 }

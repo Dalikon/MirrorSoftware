@@ -1,6 +1,14 @@
 class clientDetailes extends Module {
+    getStyles() {
+        return ["/css/clientDetailes.css"];
+    }
+
     defaults() {
         this.userConfigs = [];
+    }
+
+    createDom() {
+        return null;
     }
 
     async showPopup(targetClient) {

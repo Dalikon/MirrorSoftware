@@ -1,0 +1,15 @@
+{
+  "name": "dala",
+  "modules": [
+    {
+      "module": "clock",
+      "position": "middle_center",
+      "config": {}
+    },
+    {
+      "module": "helloworld",
+      "position": "bottom_right",
+      "config": {}
+    }
+  ]
+}

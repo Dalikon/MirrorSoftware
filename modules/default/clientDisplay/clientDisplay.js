@@ -1,4 +1,8 @@
 class clientDisplay extends Module {
+    getStyles() {
+        return ["/css/clientDisplay.css"];
+    }
+
     async defaults() {
         this.defaults = {};
         this.rootSocket = trackerSocket.socket;

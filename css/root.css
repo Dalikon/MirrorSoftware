@@ -1,12 +1,5 @@
-/* ============================================================
-   root.css — Panel / dashboard layout
-   Loaded after main.css; overrides the mirror kiosk styles
-   for the root admin/user panel.
-   ============================================================ */
-
-/* ----------------------------------------------------------
-   Variables
-   ---------------------------------------------------------- */
+/* Panel / dashboard base — variables, resets, layout, module cards.
+   Module-specific styles are loaded by each module via getStyles(). */
 
 :root {
   --color-text: #c8c8c8;
@@ -18,23 +11,18 @@
   --panel-accent: #3b82f6;
   --panel-radius: 8px;
   --font-size: 16px;
-  /* Reset mirror body gaps */
+  --nav-height: 48px;
   --gap-body-top: 0px;
   --gap-body-right: 0px;
   --gap-body-bottom: 0px;
   --gap-body-left: 0px;
 }
 
-/* ----------------------------------------------------------
-   Base resets
-   ---------------------------------------------------------- */
-
 html {
   cursor: default;
   overflow: auto;
 }
 
-/* Styled scrollbar instead of hidden */
 ::-webkit-scrollbar {
   display: block;
   width: 5px;
@@ -53,18 +41,14 @@ html {
   background: #444;
 }
 
-/* Reset mirror's absolute body */
 body {
   position: static;
   height: auto;
   width: auto;
   min-height: 100vh;
   user-select: auto;
+  padding-top: var(--nav-height);
 }
-
-/* ----------------------------------------------------------
-   Panel container
-   ---------------------------------------------------------- */
 
 #all-regions {
   display: flex;
@@ -75,10 +59,6 @@ body {
   padding: 2rem 2rem 3rem;
   box-sizing: border-box;
 }
-
-/* ----------------------------------------------------------
-   Region layout — override mirror's absolute positioning
-   ---------------------------------------------------------- */
 
 .region:not(.fullscreen) {
   position: static;
@@ -91,8 +71,7 @@ body {
   text-align: left;
 }
 
-/* Kill transforms from main.css — these selectors have higher specificity (3 classes)
-   than the :not() rule above, so they must be overridden explicitly */
+/* Kill transforms that have higher specificity (3 classes) than the :not() rule */
 .region.upper.third,
 .region.middle.center,
 .region.lower.third,
@@ -109,7 +88,6 @@ body {
   right: auto;
 }
 
-/* Top bar: inner regions flow in a row */
 .region.top.bar {
   display: flex;
   flex-wrap: wrap;
@@ -117,7 +95,6 @@ body {
   align-items: flex-start;
 }
 
-/* Bottom bar: pushed to bottom, same row layout */
 .region.bottom.bar {
   display: flex;
   flex-wrap: wrap;
@@ -127,7 +104,6 @@ body {
   padding-top: 1.5rem;
 }
 
-/* Fullscreen regions stay as overlays (alert module, etc.) */
 .region.fullscreen {
   position: fixed !important;
   inset: 0;
@@ -142,10 +118,6 @@ body {
   z-index: -1;
 }
 
-/* ----------------------------------------------------------
-   Module cards
-   ---------------------------------------------------------- */
-
 .module {
   background: var(--panel-surface);
   border: 1px solid var(--panel-border);
@@ -158,335 +130,69 @@ body {
   margin-bottom: 0;
 }
 
+.region.fullscreen .module {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
 header {
   border-bottom-color: #2e2e2e;
 }
 
 /* ----------------------------------------------------------
-   clientDisplay module
+   Panel nav bar
    ---------------------------------------------------------- */
 
-#client-container {
+#panel-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9000;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 48px;
+  background: #0d0d0d;
+  border-bottom: 1px solid var(--panel-border);
+  max-width: 100%;
 }
 
-.client-div {
+#panel-nav-title {
+  font-size: var(--font-size-xsmall);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-text-dimmed);
+}
+
+#panel-nav-right {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 200px;
-  padding: 1rem 1.25rem;
-  background: #141414;
-  border: 1px solid var(--panel-border);
-  border-radius: var(--panel-radius);
-  transition: border-color 0.15s, transform 0.15s;
-  cursor: default;
+  align-items: center;
+  gap: 1rem;
 }
 
-.client-div:hover {
-  border-color: #3a3a3a;
-  transform: translateY(-1px);
-}
-
-.client-div h4 {
-  margin: 0 0 0.4rem;
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  color: var(--color-text-bright);
-}
-
-.client-div p {
-  margin: 0.25rem 0;
+#panel-nav-user {
   font-size: var(--font-size-xsmall);
   color: var(--color-text-dimmed);
 }
 
-.client-div span {
-  font-weight: 500;
-}
-
-.client-div span.online {
-  color: #4ade80;
-}
-
-.client-div span.offline {
-  color: #f87171;
-}
-
-.client-div button,
-.view-client {
-  margin-top: 0.75rem;
-  padding: 0.4rem 1rem;
+#panel-nav-logout {
+  padding: 0.25rem 0.75rem;
   background: transparent;
-  border: 1px solid #3a3a3a;
+  border: 1px solid #333;
   border-radius: 4px;
-  color: var(--color-text);
+  color: var(--color-text-dimmed);
   font-size: var(--font-size-xsmall);
   letter-spacing: 0.05em;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
 
-.client-div button:hover,
-.view-client:hover {
+#panel-nav-logout:hover {
   border-color: var(--color-text-bright);
   color: var(--color-text-bright);
-}
-
-/* ----------------------------------------------------------
-   clientDetailes popup
-   ---------------------------------------------------------- */
-
-#popup {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.97);
-  background: #171717;
-  border: 1px solid #2e2e2e;
-  border-radius: var(--panel-radius);
-  padding: 1.5rem;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
-  z-index: 500;
-  display: none;
-  width: 480px;
-  max-width: 95vw;
-  max-height: 85vh;
-  overflow: auto;
-  opacity: 0;
-  transition: opacity 0.18s ease, transform 0.18s ease;
-  color: var(--color-text);
-}
-
-#popup.show {
-  display: block;
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-#close-popup {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 1.75rem;
-  height: 1.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  font-size: 1.25rem;
-  line-height: 1;
-  color: var(--color-text-dimmed);
-  cursor: pointer;
-  transition: color 0.15s;
-  padding: 0;
-}
-
-#close-popup:hover {
-  color: var(--color-text-bright);
-}
-
-/* Header */
-.popup-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  padding-right: 2rem;
-}
-
-.popup-header h2 {
-  margin: 0;
-  font-size: var(--font-size-medium);
-  font-weight: 400;
-  color: var(--color-text-bright);
-  letter-spacing: 0.02em;
-}
-
-.popup-status {
-  font-size: var(--font-size-xsmall);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  font-weight: 500;
-}
-
-.popup-status.online {
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.1);
-  border: 1px solid rgba(74, 222, 128, 0.25);
-}
-
-.popup-status.offline {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
-  border: 1px solid rgba(248, 113, 113, 0.25);
-}
-
-/* Cursor toggle */
-.popup-cursor-toggle {
-  margin-left: auto;
-  padding: 0.2rem 0.6rem;
-  background: transparent;
-  border: 1px solid #333;
-  border-radius: 999px;
-  color: var(--color-text-dimmed);
-  font-size: var(--font-size-xsmall);
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.popup-cursor-toggle:hover {
-  border-color: #555;
-  color: var(--color-text);
-}
-
-.popup-cursor-toggle.active {
-  border-color: var(--panel-accent);
-  color: var(--panel-accent);
-  background: rgba(59, 130, 246, 0.1);
-}
-
-/* Sections */
-.popup-section {
-  margin-bottom: 1.25rem;
-}
-
-.popup-section:last-child {
-  margin-bottom: 0;
-}
-
-.popup-section-label {
-  margin: 0 0 0.6rem;
-  font-size: var(--font-size-xsmall);
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--color-text-dimmed);
-  border-bottom: 1px solid #222;
-  padding-bottom: 0.4rem;
-}
-
-/* Connections */
-.popup-connections {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.connection-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--font-size-xsmall);
-  padding: 0.35rem 0.6rem;
-  background: #1e1e1e;
-  border-radius: 4px;
-}
-
-.connection-ip {
-  color: var(--color-text-bright);
-  font-family: monospace;
-}
-
-.connection-time {
-  color: var(--color-text-dimmed);
-}
-
-.popup-empty {
-  font-size: var(--font-size-xsmall);
-  color: var(--color-text-dimmed);
-  margin: 0;
-}
-
-/* Module rows */
-.popup-module {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: 4px;
-  transition: background 0.12s;
-}
-
-.popup-module:hover {
-  background: #1e1e1e;
-}
-
-.popup-module-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.popup-module-name {
-  font-size: var(--font-size-small);
-  color: var(--color-text-bright);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.popup-module-pos {
-  font-size: var(--font-size-xsmall);
-  color: var(--color-text-dimmed);
-}
-
-.popup-module-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.popup-btn {
-  padding: 0.3rem 0.75rem;
-  background: transparent;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: var(--color-text);
-  font-size: var(--font-size-xsmall);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-
-.popup-btn:hover {
-  border-color: #666;
-  color: var(--color-text-bright);
-}
-
-/* User buttons */
-.popup-user-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.popup-user-btn {
-  padding: 0.35rem 0.9rem;
-  background: transparent;
-  border: 1px solid #333;
-  border-radius: 999px;
-  color: var(--color-text-dimmed);
-  font-size: var(--font-size-xsmall);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.popup-user-btn:hover {
-  border-color: #555;
-  color: var(--color-text);
-}
-
-.popup-user-btn.active {
-  border-color: var(--panel-accent);
-  color: var(--panel-accent);
-  background: rgba(59, 130, 246, 0.1);
 }

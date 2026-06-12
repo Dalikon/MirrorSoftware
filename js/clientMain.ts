@@ -4,7 +4,7 @@ import { UserService } from "./UserService.js";
 import { resetDOM, fetchConfig, fetchClientConfig, fetchUserConfig, formatTime } from "./utils.js";
 import {
     setClient, setClientConfig, setConfigInUse, setFreshRegions,
-    getConfigInUse, setSession, type ActiveConfig
+    getConfigInUse, setSession, getSession, type ActiveConfig
 } from "./clientState.js";
 import type { SessionInfo } from "../types/index.js";
 import type { UserConfig } from "../types/module.js";
@@ -18,6 +18,7 @@ import type { ClientPermission, ModuleManifest } from "../types/index.js";
 (window as unknown as Record<string, unknown>)["formatTime"] = formatTime;
 (window as unknown as Record<string, unknown>)["fetchClientConfig"] = fetchClientConfig;
 (window as unknown as Record<string, unknown>)["fetchUserConfig"] = fetchUserConfig;
+(window as unknown as Record<string, unknown>)["getSession"] = getSession;
 
 class Client {
     moduleObjs: Module[] = [];
@@ -25,7 +26,7 @@ class Client {
     loadedModules: string[] = [];
     users: string[] = [];
 
-    readonly defModules = ["clock", "dbbutton", "clientDisplay", "clientDetailes", "alert"];
+    readonly defModules = ["clock", "dbbutton", "clientDisplay", "clientDetailes", "alert", "userManager", "personalization"];
 
     readonly modulePositions: ModulePosition[] = [
         "top_bar", "top_left", "top_center", "top_right",
@@ -329,6 +330,36 @@ function setupTrackerSocket(tracker: ClientSocket): void {
     });
 }
 
+function createPanelNav(session: SessionInfo): void {
+    const nav = document.createElement("nav");
+    nav.id = "panel-nav";
+
+    const title = document.createElement("span");
+    title.id = "panel-nav-title";
+    title.textContent = "HA-Mirrors";
+
+    const right = document.createElement("div");
+    right.id = "panel-nav-right";
+
+    const userSpan = document.createElement("span");
+    userSpan.id = "panel-nav-user";
+    userSpan.textContent = session.displayName;
+
+    const logoutBtn = document.createElement("button");
+    logoutBtn.id = "panel-nav-logout";
+    logoutBtn.textContent = "Log out";
+    logoutBtn.addEventListener("click", async () => {
+        await fetch("/auth/logout", { method: "POST" });
+        window.location.href = "/login";
+    });
+
+    right.appendChild(userSpan);
+    right.appendChild(logoutBtn);
+    nav.appendChild(title);
+    nav.appendChild(right);
+    document.body.insertBefore(nav, document.body.firstChild);
+}
+
 async function startClient(): Promise<void> {
     try {
         const clientConfig = await fetchConfig() as ClientConfig;
@@ -344,6 +375,7 @@ async function startClient(): Promise<void> {
             }
             const session = await sessionRes.json() as SessionInfo;
             setSession(session);
+            createPanelNav(session);
 
             const roleRes = await fetch(`/get-user/${session.role}`, {
                 method: "POST",

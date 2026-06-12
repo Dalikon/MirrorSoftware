@@ -5,5 +5,12 @@
     "role": "admin",
     "passwordHash": "e145ff9dada7a54ceaa095ac6d9e884c2dc75f19aebee34d67985cd31610bb6c43f9f5a80988f806857fdb9ef6dade69fdd8bfe2aaf68bbeeed4f44cad985eb5",
     "salt": "b03dd15981b69dcfeaf4edf75fa8dc98"
+  },
+  {
+    "username": "dala",
+    "displayName": "Dalibor",
+    "role": "user",
+    "passwordHash": "8a0bbc1327db3eaf423c806d3e349a775302213bc99c1959f7944351743231d97124b9f9d9c5c41c93a02054d5ffb94825701eae88f111921449f3baa91341a8",
+    "salt": "1259328f162155c624b39660693070d0"
   }
 ]

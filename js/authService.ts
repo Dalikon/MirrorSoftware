@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Account, Session, SessionInfo } from "../types/auth.js";
+import type { Account, Session, SessionInfo, UserRole } from "../types/auth.js";
 
 export const COOKIE_NAME = "hms-session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -96,6 +96,45 @@ export class AuthService {
 
     logout(token: string): void {
         this.sessions.delete(token);
+        this.saveSessions();
+    }
+
+    listAccounts(): Omit<Account, "passwordHash" | "salt">[] {
+        return this.loadAccounts().map(({ username, displayName, role }) => ({ username, displayName, role }));
+    }
+
+    createAccount(username: string, displayName: string, role: UserRole, password: string): void {
+        const accounts = this.loadAccounts();
+        if (accounts.find(a => a.username === username)) {
+            throw new Error(`User '${username}' already exists`);
+        }
+        const salt = crypto.randomBytes(16).toString("hex");
+        accounts.push({ username, displayName, role, passwordHash: this.hashPassword(password, salt), salt });
+        fs.writeFileSync(this.accountsPath, JSON.stringify(accounts, null, 2));
+    }
+
+    updateAccount(username: string, updates: { displayName?: string; role?: UserRole; password?: string }): void {
+        const accounts = this.loadAccounts();
+        const account = accounts.find(a => a.username === username);
+        if (!account) throw new Error(`User '${username}' not found`);
+        if (updates.displayName !== undefined) account.displayName = updates.displayName;
+        if (updates.role !== undefined) account.role = updates.role;
+        if (updates.password) {
+            account.salt = crypto.randomBytes(16).toString("hex");
+            account.passwordHash = this.hashPassword(updates.password, account.salt);
+        }
+        fs.writeFileSync(this.accountsPath, JSON.stringify(accounts, null, 2));
+    }
+
+    deleteAccount(username: string): void {
+        const accounts = this.loadAccounts();
+        const index = accounts.findIndex(a => a.username === username);
+        if (index === -1) throw new Error(`User '${username}' not found`);
+        accounts.splice(index, 1);
+        fs.writeFileSync(this.accountsPath, JSON.stringify(accounts, null, 2));
+        for (const [token, session] of this.sessions) {
+            if (session.username === username) this.sessions.delete(token);
+        }
         this.saveSessions();
     }
 

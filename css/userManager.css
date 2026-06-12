@@ -1,0 +1,240 @@
+/* userManager module — user list and form overlay */
+
+.um-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.um-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.um-title {
+  margin: 0;
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dimmed);
+}
+
+.um-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.um-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.um-row:hover {
+  background: #1e1e1e;
+}
+
+.um-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.um-username {
+  font-size: var(--font-size-small);
+  color: var(--color-text-bright);
+  white-space: nowrap;
+}
+
+.um-displayname {
+  font-size: var(--font-size-xsmall);
+  color: var(--color-text-dimmed);
+  white-space: nowrap;
+}
+
+.um-role {
+  font-size: var(--font-size-xsmall);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.um-role.admin {
+  color: var(--panel-accent);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.um-role.user {
+  color: var(--color-text-dimmed);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #2e2e2e;
+}
+
+.um-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.um-del-btn {
+  color: #f87171 !important;
+  border-color: rgba(248, 113, 113, 0.3) !important;
+}
+
+.um-del-btn:hover {
+  border-color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.08) !important;
+}
+
+.um-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.um-form-card {
+  position: relative;
+  background: #171717;
+  border: 1px solid #2e2e2e;
+  border-radius: var(--panel-radius);
+  padding: 1.5rem;
+  width: 400px;
+  max-width: 95vw;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+}
+
+.um-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--color-text-dimmed);
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 0;
+}
+
+.um-close:hover {
+  color: var(--color-text-bright);
+}
+
+.um-form-title {
+  margin: 0 2rem 1.25rem 0;
+  font-size: var(--font-size-medium);
+  font-weight: 400;
+  color: var(--color-text-bright);
+}
+
+.um-error {
+  margin: 0 0 0.75rem;
+  font-size: var(--font-size-xsmall);
+  color: #f87171;
+  min-height: 1rem;
+}
+
+.um-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.um-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.um-label {
+  font-size: var(--font-size-xsmall);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dimmed);
+}
+
+.um-input,
+.um-select {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: var(--color-text-bright);
+  font-size: var(--font-size-small);
+  padding: 0.35rem 0;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  font-family: inherit;
+}
+
+.um-input:focus,
+.um-select:focus {
+  border-bottom-color: var(--color-text-bright);
+}
+
+.um-input::placeholder {
+  color: var(--color-text-dimmed);
+  font-size: var(--font-size-xsmall);
+}
+
+.um-select option {
+  background: #1e1e1e;
+}
+
+.um-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.um-mirrors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  padding-top: 0.25rem;
+}
+
+.um-mirror-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--font-size-small);
+  color: var(--color-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.um-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.um-save-btn {
+  border-color: var(--panel-accent) !important;
+  color: var(--panel-accent) !important;
+}
+
+.um-save-btn:hover {
+  background: rgba(59, 130, 246, 0.1) !important;
+}
