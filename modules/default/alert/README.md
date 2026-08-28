@@ -8,8 +8,8 @@ Add to a client's `defaultModules` or a user's `modules` config:
 
 ```json
 {
-    "module": "alert",
-    "position": "fullscreen_above"
+	"module": "alert",
+	"position": "fullscreen_above"
 }
 ```
 
@@ -17,23 +17,23 @@ Add to a client's `defaultModules` or a user's `modules` config:
 
 ## Configuration
 
-| Option | Default | Description |
-|---|---|---|
-| `effect` | `"slide"` | Animation for growl-style notifications. Options: `scale`, `slide`, `genie`, `jelly`, `exploader`, `bouncyflip` |
-| `alert_effect` | `"jelly"` | Animation for blocking alerts |
-| `display_time` | `3500` | How long a notification stays visible (ms) |
-| `position` | `"center"` | Horizontal alignment of notifications: `left`, `center`, `right` |
-| `welcome_message` | `false` | Message shown on startup. Set to a string or `false` to disable |
+| Option            | Default    | Description                                                                                                     |
+| ----------------- | ---------- | --------------------------------------------------------------------------------------------------------------- |
+| `effect`          | `"slide"`  | Animation for growl-style notifications. Options: `scale`, `slide`, `genie`, `jelly`, `exploader`, `bouncyflip` |
+| `alert_effect`    | `"jelly"`  | Animation for blocking alerts                                                                                   |
+| `display_time`    | `3500`     | How long a notification stays visible (ms)                                                                      |
+| `position`        | `"center"` | Horizontal alignment of notifications: `left`, `center`, `right`                                                |
+| `welcome_message` | `false`    | Message shown on startup. Set to a string or `false` to disable                                                 |
 
 ```json
 {
-    "module": "alert",
-    "position": "fullscreen_above",
-    "config": {
-        "effect": "slide",
-        "display_time": 4000,
-        "welcome_message": "Mirror ready."
-    }
+	"module": "alert",
+	"position": "fullscreen_above",
+	"config": {
+		"effect": "slide",
+		"display_time": 4000,
+		"welcome_message": "Mirror ready."
+	}
 }
 ```
 
@@ -43,19 +43,19 @@ Slides in from the edge, auto-dismisses after `timer` ms (or `display_time` if o
 
 ```javascript
 this.sendNotification("SHOW_ALERT", {
-    type: "notification",
-    title: "Module Name",
-    message: "Something happened.",
-    timer: 5000
+	type: "notification",
+	title: "Module Name",
+	message: "Something happened.",
+	timer: 5000,
 });
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `type` | `"notification"` | Required to trigger growl mode |
-| `title` | string | Optional header text |
-| `message` | string | Body text |
-| `timer` | number (ms) | Override display time for this notification |
+| Field     | Type             | Description                                 |
+| --------- | ---------------- | ------------------------------------------- |
+| `type`    | `"notification"` | Required to trigger growl mode              |
+| `title`   | string           | Optional header text                        |
+| `message` | string           | Body text                                   |
+| `timer`   | number (ms)      | Override display time for this notification |
 
 ## Sending a blocking alert
 
@@ -63,11 +63,11 @@ Appears center-screen with a blur overlay over all other modules. Stays until di
 
 ```javascript
 this.sendNotification("SHOW_ALERT", {
-    type: "alert",
-    title: "Warning",
-    message: "Action required.",
-    sender: "myModuleName",
-    timer: 10000
+	type: "alert",
+	title: "Warning",
+	message: "Action required.",
+	sender: "myModuleName",
+	timer: 10000,
 });
 ```
 
@@ -77,15 +77,15 @@ Dismiss it manually before the timer (e.g. after user action):
 this.sendNotification("HIDE_ALERT", { sender: "myModuleName" });
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `type` | `"alert"` | Required to trigger blocking mode |
-| `title` | string | Optional header text |
-| `message` | string | Body text |
-| `imageUrl` | string | Optional image URL |
-| `imageHeight` | string | Image height, defaults to `"80px"` |
-| `sender` | string | Module name used to track and dismiss this specific alert |
-| `timer` | number (ms) | Auto-dismiss after this duration. Omit to require manual `HIDE_ALERT` |
+| Field         | Type        | Description                                                           |
+| ------------- | ----------- | --------------------------------------------------------------------- |
+| `type`        | `"alert"`   | Required to trigger blocking mode                                     |
+| `title`       | string      | Optional header text                                                  |
+| `message`     | string      | Body text                                                             |
+| `imageUrl`    | string      | Optional image URL                                                    |
+| `imageHeight` | string      | Image height, defaults to `"80px"`                                    |
+| `sender`      | string      | Module name used to track and dismiss this specific alert             |
+| `timer`       | number (ms) | Auto-dismiss after this duration. Omit to require manual `HIDE_ALERT` |
 
 ## Differences from MagicMirror²
 

@@ -1,393 +1,440 @@
 const POSITIONS = [
-    "top_bar", "top_left", "top_center", "top_right",
-    "upper_third", "middle_center", "lower_third",
-    "bottom_left", "bottom_center", "bottom_right", "bottom_bar",
-    "fullscreen_above", "fullscreen_below"
+	"top_bar",
+	"top_left",
+	"top_center",
+	"top_right",
+	"upper_third",
+	"middle_center",
+	"lower_third",
+	"bottom_left",
+	"bottom_center",
+	"bottom_right",
+	"bottom_bar",
+	"fullscreen_above",
+	"fullscreen_below",
 ];
 
 class personalization extends Module {
-    getStyles() {
-        return ["/css/personalization.css"];
-    }
+	getStyles() {
+		return ["/css/personalization.css"];
+	}
 
-    defaults() {
-        this.defaults = {};
-        this.scope = "global";       // "global" or a client name
-        this.configs = {};           // cache: { global: {...}, bathroom: {...} }
-        this.assignedClients = [];
-        this.availableModules = null;
-        this.dirty = false;
-        this.listEl = null;
-        this.saveBtn = null;
-    }
+	defaults() {
+		this.defaults = {};
+		this.scope = "global"; // "global" or a client name
+		this.configs = {}; // cache: { global: {...}, bathroom: {...} }
+		this.assignedClients = [];
+		this.availableModules = null;
+		this.dirty = false;
+		this.listEl = null;
+		this.saveBtn = null;
+		this.currentUser = null;
+		this.userToggled = false;
+		this.changeUserBtn = null;
+	}
 
-    async fetchScope(scope) {
-        if (this.configs[scope]) return;
-        const url = scope === "global" ? "/user/config" : `/user/config/${scope}`;
-        const res = await fetch(url);
-        this.configs[scope] = res.ok ? await res.json() : { modules: [] };
-    }
+	async fetchScope(scope) {
+		if (this.configs[scope]) return;
+		const url = scope === "global" ? "/user/config" : `/user/config/${scope}`;
+		const res = await fetch(url);
+		const data = res.ok ? await res.json() : { modules: [] };
+		this.configs[scope] = data;
 
-    async fetchAssignedClients() {
-        if (this.assignedClients.length) return;
-        const res = await fetch("/user/clients");
-        this.assignedClients = res.ok ? await res.json() : [];
-    }
+		if (data.name && !this.currentUser) this.currentUser = data.name;
+	}
 
-    async fetchAvailableModules() {
-        if (this.availableModules) return;
-        const res = await fetch("/user/modules/available");
-        this.availableModules = res.ok ? await res.json() : [];
-    }
+	async fetchAssignedClients() {
+		if (this.assignedClients.length) return;
+		const res = await fetch("/user/clients");
+		this.assignedClients = res.ok ? await res.json() : [];
+	}
 
-    currentModules() {
-        return this.configs[this.scope]?.modules ?? [];
-    }
+	async fetchAvailableModules() {
+		if (this.availableModules) return;
+		const res = await fetch("/user/modules/available");
+		this.availableModules = res.ok ? await res.json() : [];
+	}
 
-    async createDom() {
-        await Promise.all([
-            this.fetchScope("global"),
-            this.fetchAssignedClients(),
-        ]);
+	currentModules() {
+		return this.configs[this.scope]?.modules ?? [];
+	}
 
-        const wrap = document.createElement("div");
-        wrap.className = "pers-wrap";
+	toggleClientUser() {
+		if (this.scope === "global") return; // guard, in case it'se
 
-        // Header
-        const hdr = document.createElement("div");
-        hdr.className = "pers-header";
+		this.userToggled = !this.userToggled;
+		const user = this.userToggled ? this.currentUser : "GLOBAL";
 
-        const left = document.createElement("div");
-        left.className = "pers-header-left";
+		trackerSocket.sendNotification("CHANGE_USER_X", { client: this.scope, user: user });
+		this.setChangeUserLabel();
+	}
 
-        const title = document.createElement("h3");
-        title.className = "pers-title";
-        title.textContent = "Your modules";
-        left.appendChild(title);
+	setChangeUserLabel() {
+		if (!this.changeUserBtn) return;
+		this.changeUserBtn.textContent = this.userToggled
+			? "Reset to Global"
+			: `Assign me (${this.currentUser})`;
+	}
 
-        // Scope selector (only shown if the user is assigned to at least one client)
-        if (this.assignedClients.length > 0) {
-            const scopeSelect = document.createElement("select");
-            scopeSelect.className = "pers-scope-select";
+	async createDom() {
+		await Promise.all([this.fetchScope("global"), this.fetchAssignedClients()]);
 
-            const globalOpt = document.createElement("option");
-            globalOpt.value = "global";
-            globalOpt.textContent = "Global (fallback)";
-            scopeSelect.appendChild(globalOpt);
+		const wrap = document.createElement("div");
+		wrap.className = "pers-wrap";
 
-            for (const client of this.assignedClients) {
-                const opt = document.createElement("option");
-                opt.value = client;
-                opt.textContent = client;
-                scopeSelect.appendChild(opt);
-            }
+		// Header
+		const hdr = document.createElement("div");
+		hdr.className = "pers-header";
 
-            scopeSelect.value = this.scope;
-            scopeSelect.addEventListener("change", async () => {
-                if (this.dirty) {
-                    const ok = confirm("You have unsaved changes. Switch scope and discard them?");
-                    if (!ok) { scopeSelect.value = this.scope; return; }
-                    this.dirty = false;
-                }
-                this.scope = scopeSelect.value;
-                await this.fetchScope(this.scope);
-                this.renderList();
-                this.saveBtn.disabled = true;
-                this.saveBtn.textContent = "Save changes";
-            });
+		const left = document.createElement("div");
+		left.className = "pers-header-left";
 
-            left.appendChild(scopeSelect);
-        }
+		const title = document.createElement("h3");
+		title.className = "pers-title";
+		title.textContent = "Your modules";
+		left.appendChild(title);
 
-        const btnRow = document.createElement("div");
-        btnRow.className = "pers-header-btns";
+		// Scope selector (only shown if the user is assigned to at least one client)
+		if (this.assignedClients.length > 0) {
+			const scopeSelect = document.createElement("select");
+			scopeSelect.className = "pers-scope-select";
 
-        const addBtn = document.createElement("button");
-        addBtn.className = "popup-btn";
-        addBtn.textContent = "+ Add module";
-        addBtn.addEventListener("click", () => this.showAddForm());
+			const globalOpt = document.createElement("option");
+			globalOpt.value = "global";
+			globalOpt.textContent = "Global (fallback)";
+			scopeSelect.appendChild(globalOpt);
 
-        this.saveBtn = document.createElement("button");
-        this.saveBtn.className = "popup-btn pers-save-btn";
-        this.saveBtn.textContent = "Save changes";
-        this.saveBtn.disabled = true;
-        this.saveBtn.addEventListener("click", () => this.save());
+			for (const client of this.assignedClients) {
+				const opt = document.createElement("option");
+				opt.value = client;
+				opt.textContent = client;
+				scopeSelect.appendChild(opt);
+			}
 
-        btnRow.appendChild(addBtn);
-        btnRow.appendChild(this.saveBtn);
+			scopeSelect.value = this.scope;
+			scopeSelect.addEventListener("change", async () => {
+				if (this.dirty) {
+					const ok = confirm("You have unsaved changes. Switch scope and discard them?");
+					if (!ok) {
+						scopeSelect.value = this.scope;
+						return;
+					}
+					this.dirty = false;
+				}
+				this.scope = scopeSelect.value;
+				await this.fetchScope(this.scope);
+				this.renderList();
+				this.saveBtn.disabled = true;
+				this.saveBtn.textContent = "Save changes";
 
-        hdr.appendChild(left);
-        hdr.appendChild(btnRow);
-        wrap.appendChild(hdr);
+				this.userToggled = false;
+				if (this.changeUserBtn) {
+					this.changeUserBtn.disabled = this.scope === "global";
+					this.setChangeUserLabel();
+				}
+			});
 
-        this.listEl = document.createElement("div");
-        this.listEl.className = "pers-list";
-        this.renderList();
-        wrap.appendChild(this.listEl);
+			left.appendChild(scopeSelect);
+		}
 
-        return wrap;
-    }
+		const btnRow = document.createElement("div");
+		btnRow.className = "pers-header-btns";
 
-    renderList() {
-        this.listEl.innerHTML = "";
-        const modules = this.currentModules();
+		this.changeUserBtn = document.createElement("button");
+		this.changeUserBtn.className = "popup-btn pers-changeuser-btn";
+		this.changeUserBtn.disabled = this.scope === "global";
+		this.setChangeUserLabel();
+		this.changeUserBtn.addEventListener("click", () => this.toggleClientUser());
 
-        if (!modules.length) {
-            const empty = document.createElement("div");
-            empty.className = "pers-empty";
-            const msg = document.createElement("p");
-            msg.className = "popup-empty";
-            msg.textContent = this.scope === "global"
-                ? "No modules configured yet."
-                : `No overrides for ${this.scope} — uses global config.`;
-            const hint = document.createElement("p");
-            hint.className = "pers-empty-hint";
-            hint.textContent = "Use \"+ Add module\" to build your layout.";
-            empty.appendChild(msg);
-            empty.appendChild(hint);
-            this.listEl.appendChild(empty);
-            return;
-        }
+		btnRow.appendChild(this.changeUserBtn);
 
-        modules.forEach((mod, index) => {
-            this.listEl.appendChild(this.renderRow(mod, index, modules.length));
-        });
-    }
+		const addBtn = document.createElement("button");
+		addBtn.className = "popup-btn";
+		addBtn.textContent = "+ Add module";
+		addBtn.addEventListener("click", () => this.showAddForm());
 
-    renderRow(mod, index, total) {
-        const row = document.createElement("div");
-        row.className = "pers-row";
+		this.saveBtn = document.createElement("button");
+		this.saveBtn.className = "popup-btn pers-save-btn";
+		this.saveBtn.textContent = "Save changes";
+		this.saveBtn.disabled = true;
+		this.saveBtn.addEventListener("click", () => this.save());
 
-        const reorder = document.createElement("div");
-        reorder.className = "pers-reorder";
+		btnRow.appendChild(addBtn);
+		btnRow.appendChild(this.saveBtn);
 
-        const upBtn = document.createElement("button");
-        upBtn.className = "pers-arrow";
-        upBtn.textContent = "↑";
-        upBtn.disabled = index === 0;
-        upBtn.addEventListener("click", () => this.moveModule(index, -1));
+		hdr.appendChild(left);
+		hdr.appendChild(btnRow);
+		wrap.appendChild(hdr);
 
-        const downBtn = document.createElement("button");
-        downBtn.className = "pers-arrow";
-        downBtn.textContent = "↓";
-        downBtn.disabled = index === total - 1;
-        downBtn.addEventListener("click", () => this.moveModule(index, 1));
+		this.listEl = document.createElement("div");
+		this.listEl.className = "pers-list";
+		this.renderList();
+		wrap.appendChild(this.listEl);
 
-        reorder.appendChild(upBtn);
-        reorder.appendChild(downBtn);
-        row.appendChild(reorder);
+		return wrap;
+	}
 
-        const main = document.createElement("div");
-        main.className = "pers-main";
+	renderList() {
+		this.listEl.innerHTML = "";
+		const modules = this.currentModules();
 
-        const topRow = document.createElement("div");
-        topRow.className = "pers-top-row";
+		if (!modules.length) {
+			const empty = document.createElement("div");
+			empty.className = "pers-empty";
+			const msg = document.createElement("p");
+			msg.className = "popup-empty";
+			msg.textContent =
+				this.scope === "global"
+					? "No modules configured yet."
+					: `No overrides for ${this.scope} — uses global config.`;
+			const hint = document.createElement("p");
+			hint.className = "pers-empty-hint";
+			hint.textContent = 'Use "+ Add module" to build your layout.';
+			empty.appendChild(msg);
+			empty.appendChild(hint);
+			this.listEl.appendChild(empty);
+			return;
+		}
 
-        const nameEl = document.createElement("span");
-        nameEl.className = "pers-name";
-        nameEl.textContent = mod.module;
-        topRow.appendChild(nameEl);
+		modules.forEach((mod, index) => {
+			this.listEl.appendChild(this.renderRow(mod, index, modules.length));
+		});
+	}
 
-        const posSelect = document.createElement("select");
-        posSelect.className = "pers-pos-select";
-        for (const pos of POSITIONS) {
-            const opt = document.createElement("option");
-            opt.value = pos;
-            opt.textContent = pos.replace(/_/g, " ");
-            if (pos === (mod.position ?? "middle_center")) opt.selected = true;
-            posSelect.appendChild(opt);
-        }
-        posSelect.addEventListener("change", () => {
-            this.configs[this.scope].modules[index].position = posSelect.value;
-            this.markDirty();
-        });
-        topRow.appendChild(posSelect);
+	renderRow(mod, index, total) {
+		const row = document.createElement("div");
+		row.className = "pers-row";
 
-        const hiddenLabel = document.createElement("label");
-        hiddenLabel.className = "pers-hidden";
-        const hiddenCb = document.createElement("input");
-        hiddenCb.type = "checkbox";
-        hiddenCb.checked = mod.hiddenOnStartup ?? false;
-        hiddenCb.addEventListener("change", () => {
-            this.configs[this.scope].modules[index].hiddenOnStartup = hiddenCb.checked;
-            this.markDirty();
-        });
-        hiddenLabel.appendChild(hiddenCb);
-        hiddenLabel.appendChild(document.createTextNode(" hidden"));
-        topRow.appendChild(hiddenLabel);
+		const reorder = document.createElement("div");
+		reorder.className = "pers-reorder";
 
-        const delBtn = document.createElement("button");
-        delBtn.className = "popup-btn pers-del";
-        delBtn.textContent = "×";
-        delBtn.title = "Remove module";
-        delBtn.addEventListener("click", () => {
-            this.configs[this.scope].modules.splice(index, 1);
-            this.markDirty();
-            this.renderList();
-        });
-        topRow.appendChild(delBtn);
+		const upBtn = document.createElement("button");
+		upBtn.className = "pers-arrow";
+		upBtn.textContent = "↑";
+		upBtn.disabled = index === 0;
+		upBtn.addEventListener("click", () => this.moveModule(index, -1));
 
-        main.appendChild(topRow);
+		const downBtn = document.createElement("button");
+		downBtn.className = "pers-arrow";
+		downBtn.textContent = "↓";
+		downBtn.disabled = index === total - 1;
+		downBtn.addEventListener("click", () => this.moveModule(index, 1));
 
-        if (mod.config && Object.keys(mod.config).length > 0) {
-            main.appendChild(this.renderConfigEditor(mod.config, index));
-        }
+		reorder.appendChild(upBtn);
+		reorder.appendChild(downBtn);
+		row.appendChild(reorder);
 
-        row.appendChild(main);
-        return row;
-    }
+		const main = document.createElement("div");
+		main.className = "pers-main";
 
-    renderConfigEditor(config, moduleIndex) {
-        const editor = document.createElement("div");
-        editor.className = "pers-config";
+		const topRow = document.createElement("div");
+		topRow.className = "pers-top-row";
 
-        for (const [key, value] of Object.entries(config)) {
-            const field = document.createElement("div");
-            field.className = "pers-config-field";
+		const nameEl = document.createElement("span");
+		nameEl.className = "pers-name";
+		nameEl.textContent = mod.module;
+		topRow.appendChild(nameEl);
 
-            const label = document.createElement("label");
-            label.className = "pers-config-label";
-            label.textContent = key;
-            field.appendChild(label);
+		const posSelect = document.createElement("select");
+		posSelect.className = "pers-pos-select";
+		for (const pos of POSITIONS) {
+			const opt = document.createElement("option");
+			opt.value = pos;
+			opt.textContent = pos.replace(/_/g, " ");
+			if (pos === (mod.position ?? "middle_center")) opt.selected = true;
+			posSelect.appendChild(opt);
+		}
+		posSelect.addEventListener("change", () => {
+			this.configs[this.scope].modules[index].position = posSelect.value;
+			this.markDirty();
+		});
+		topRow.appendChild(posSelect);
 
-            let input;
-            if (typeof value === "boolean") {
-                input = document.createElement("input");
-                input.type = "checkbox";
-                input.checked = value;
-                input.addEventListener("change", () => {
-                    this.configs[this.scope].modules[moduleIndex].config[key] = input.checked;
-                    this.markDirty();
-                });
-            } else if (typeof value === "number") {
-                input = document.createElement("input");
-                input.type = "number";
-                input.value = String(value);
-                input.className = "pers-config-input";
-                input.addEventListener("input", () => {
-                    this.configs[this.scope].modules[moduleIndex].config[key] = Number(input.value);
-                    this.markDirty();
-                });
-            } else {
-                input = document.createElement("input");
-                input.type = "text";
-                input.value = String(value ?? "");
-                input.className = "pers-config-input";
-                input.addEventListener("input", () => {
-                    this.configs[this.scope].modules[moduleIndex].config[key] = input.value;
-                    this.markDirty();
-                });
-            }
+		const hiddenLabel = document.createElement("label");
+		hiddenLabel.className = "pers-hidden";
+		const hiddenCb = document.createElement("input");
+		hiddenCb.type = "checkbox";
+		hiddenCb.checked = mod.hiddenOnStartup ?? false;
+		hiddenCb.addEventListener("change", () => {
+			this.configs[this.scope].modules[index].hiddenOnStartup = hiddenCb.checked;
+			this.markDirty();
+		});
+		hiddenLabel.appendChild(hiddenCb);
+		hiddenLabel.appendChild(document.createTextNode(" hidden"));
+		topRow.appendChild(hiddenLabel);
 
-            field.appendChild(input);
-            editor.appendChild(field);
-        }
+		const delBtn = document.createElement("button");
+		delBtn.className = "popup-btn pers-del";
+		delBtn.textContent = "×";
+		delBtn.title = "Remove module";
+		delBtn.addEventListener("click", () => {
+			this.configs[this.scope].modules.splice(index, 1);
+			this.markDirty();
+			this.renderList();
+		});
+		topRow.appendChild(delBtn);
 
-        return editor;
-    }
+		main.appendChild(topRow);
 
-    async showAddForm() {
-        this.listEl.querySelector(".pers-add-form")?.remove();
-        await this.fetchAvailableModules();
+		if (mod.config && Object.keys(mod.config).length > 0) {
+			main.appendChild(this.renderConfigEditor(mod.config, index));
+		}
 
-        const form = document.createElement("div");
-        form.className = "pers-add-form";
+		row.appendChild(main);
+		return row;
+	}
 
-        const moduleSelect = document.createElement("select");
-        moduleSelect.className = "pers-pos-select";
-        for (const name of this.availableModules) {
-            const opt = document.createElement("option");
-            opt.value = name;
-            opt.textContent = name;
-            moduleSelect.appendChild(opt);
-        }
+	renderConfigEditor(config, moduleIndex) {
+		const editor = document.createElement("div");
+		editor.className = "pers-config";
 
-        const posSelect = document.createElement("select");
-        posSelect.className = "pers-pos-select";
-        for (const pos of POSITIONS) {
-            const opt = document.createElement("option");
-            opt.value = pos;
-            opt.textContent = pos.replace(/_/g, " ");
-            if (pos === "middle_center") opt.selected = true;
-            posSelect.appendChild(opt);
-        }
+		for (const [key, value] of Object.entries(config)) {
+			const field = document.createElement("div");
+			field.className = "pers-config-field";
 
-        const addBtn = document.createElement("button");
-        addBtn.className = "popup-btn pers-add-confirm";
-        addBtn.textContent = "Add";
-        addBtn.addEventListener("click", () => {
-            if (!this.configs[this.scope]) this.configs[this.scope] = { modules: [] };
-            this.configs[this.scope].modules.push({
-                module: moduleSelect.value,
-                position: posSelect.value,
-                config: {},
-            });
-            this.markDirty();
-            this.renderList();
-        });
+			const label = document.createElement("label");
+			label.className = "pers-config-label";
+			label.textContent = key;
+			field.appendChild(label);
 
-        const cancelBtn = document.createElement("button");
-        cancelBtn.className = "popup-btn";
-        cancelBtn.textContent = "Cancel";
-        cancelBtn.addEventListener("click", () => form.remove());
+			let input;
+			if (typeof value === "boolean") {
+				input = document.createElement("input");
+				input.type = "checkbox";
+				input.checked = value;
+				input.addEventListener("change", () => {
+					this.configs[this.scope].modules[moduleIndex].config[key] = input.checked;
+					this.markDirty();
+				});
+			} else if (typeof value === "number") {
+				input = document.createElement("input");
+				input.type = "number";
+				input.value = String(value);
+				input.className = "pers-config-input";
+				input.addEventListener("input", () => {
+					this.configs[this.scope].modules[moduleIndex].config[key] = Number(input.value);
+					this.markDirty();
+				});
+			} else {
+				input = document.createElement("input");
+				input.type = "text";
+				input.value = String(value ?? "");
+				input.className = "pers-config-input";
+				input.addEventListener("input", () => {
+					this.configs[this.scope].modules[moduleIndex].config[key] = input.value;
+					this.markDirty();
+				});
+			}
 
-        form.appendChild(moduleSelect);
-        form.appendChild(posSelect);
-        form.appendChild(addBtn);
-        form.appendChild(cancelBtn);
+			field.appendChild(input);
+			editor.appendChild(field);
+		}
 
-        this.listEl.appendChild(form);
-        moduleSelect.focus();
-    }
+		return editor;
+	}
 
-    moveModule(index, direction) {
-        const mods = this.configs[this.scope].modules;
-        const target = index + direction;
-        if (target < 0 || target >= mods.length) return;
-        [mods[index], mods[target]] = [mods[target], mods[index]];
-        this.markDirty();
-        this.renderList();
-    }
+	async showAddForm() {
+		this.listEl.querySelector(".pers-add-form")?.remove();
+		await this.fetchAvailableModules();
 
-    markDirty() {
-        this.dirty = true;
-        if (this.saveBtn) {
-            this.saveBtn.disabled = false;
-            this.saveBtn.textContent = "Save changes";
-        }
-    }
+		const form = document.createElement("div");
+		form.className = "pers-add-form";
 
-    async save() {
-        if (!this.saveBtn) return;
-        this.saveBtn.disabled = true;
-        this.saveBtn.textContent = "Saving…";
+		const moduleSelect = document.createElement("select");
+		moduleSelect.className = "pers-pos-select";
+		for (const name of this.availableModules) {
+			const opt = document.createElement("option");
+			opt.value = name;
+			opt.textContent = name;
+			moduleSelect.appendChild(opt);
+		}
 
-        const url = this.scope === "global" ? "/user/config" : `/user/config/${this.scope}`;
-        const res = await fetch(url, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ modules: this.configs[this.scope]?.modules ?? [] }),
-        });
+		const posSelect = document.createElement("select");
+		posSelect.className = "pers-pos-select";
+		for (const pos of POSITIONS) {
+			const opt = document.createElement("option");
+			opt.value = pos;
+			opt.textContent = pos.replace(/_/g, " ");
+			if (pos === "middle_center") opt.selected = true;
+			posSelect.appendChild(opt);
+		}
 
-        if (res.ok) {
-            this.dirty = false;
-            this.saveBtn.textContent = "Saved!";
-            setTimeout(() => {
-                if (!this.dirty && this.saveBtn) {
-                    this.saveBtn.textContent = "Save changes";
-                    this.saveBtn.disabled = true;
-                }
-            }, 2000);
-        } else {
-            this.saveBtn.disabled = false;
-            this.saveBtn.textContent = "Save failed";
-            setTimeout(() => {
-                if (this.saveBtn) this.saveBtn.textContent = "Save changes";
-            }, 2000);
-        }
-    }
+		const addBtn = document.createElement("button");
+		addBtn.className = "popup-btn pers-add-confirm";
+		addBtn.textContent = "Add";
+		addBtn.addEventListener("click", () => {
+			if (!this.configs[this.scope]) this.configs[this.scope] = { modules: [] };
+			this.configs[this.scope].modules.push({
+				module: moduleSelect.value,
+				position: posSelect.value,
+				config: {},
+			});
+			this.markDirty();
+			this.renderList();
+		});
 
-    notificationReceived() {}
+		const cancelBtn = document.createElement("button");
+		cancelBtn.className = "popup-btn";
+		cancelBtn.textContent = "Cancel";
+		cancelBtn.addEventListener("click", () => form.remove());
+
+		form.appendChild(moduleSelect);
+		form.appendChild(posSelect);
+		form.appendChild(addBtn);
+		form.appendChild(cancelBtn);
+
+		this.listEl.appendChild(form);
+		moduleSelect.focus();
+	}
+
+	moveModule(index, direction) {
+		const mods = this.configs[this.scope].modules;
+		const target = index + direction;
+		if (target < 0 || target >= mods.length) return;
+		[mods[index], mods[target]] = [mods[target], mods[index]];
+		this.markDirty();
+		this.renderList();
+	}
+
+	markDirty() {
+		this.dirty = true;
+		if (this.saveBtn) {
+			this.saveBtn.disabled = false;
+			this.saveBtn.textContent = "Save changes";
+		}
+	}
+
+	async save() {
+		if (!this.saveBtn) return;
+		this.saveBtn.disabled = true;
+		this.saveBtn.textContent = "Saving…";
+
+		const url = this.scope === "global" ? "/user/config" : `/user/config/${this.scope}`;
+		const res = await fetch(url, {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ modules: this.configs[this.scope]?.modules ?? [] }),
+		});
+
+		if (res.ok) {
+			this.dirty = false;
+			this.saveBtn.textContent = "Saved!";
+			setTimeout(() => {
+				if (!this.dirty && this.saveBtn) {
+					this.saveBtn.textContent = "Save changes";
+					this.saveBtn.disabled = true;
+				}
+			}, 2000);
+		} else {
+			this.saveBtn.disabled = false;
+			this.saveBtn.textContent = "Save failed";
+			setTimeout(() => {
+				if (this.saveBtn) this.saveBtn.textContent = "Save changes";
+			}, 2000);
+		}
+	}
+
+	notificationReceived() {}
 }
 
 window.personalization = personalization;

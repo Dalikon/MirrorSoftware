@@ -1,0 +1,18 @@
+{
+  "name": "dala",
+  "modules": [
+    {
+      "module": "helloworld",
+      "position": "upper_third",
+      "classes": "large thin",
+      "config": {
+        "text": "DalaBath2"
+      }
+    },
+    {
+      "module": "clock",
+      "position": "middle_center",
+      "config": {}
+    }
+  ]
+}

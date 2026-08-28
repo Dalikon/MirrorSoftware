@@ -3,8 +3,14 @@ import { ClientSocket } from "./clientSocket.js";
 import { UserService } from "./UserService.js";
 import { resetDOM, fetchConfig, fetchClientConfig, fetchUserConfig, formatTime } from "./utils.js";
 import {
-    setClient, setClientConfig, setConfigInUse, setFreshRegions,
-    getConfigInUse, setSession, getSession, type ActiveConfig
+	setClient,
+	setClientConfig,
+	setConfigInUse,
+	setFreshRegions,
+	getConfigInUse,
+	setSession,
+	getSession,
+	type ActiveConfig,
 } from "./clientState.js";
 import type { SessionInfo } from "../types/index.js";
 import type { UserConfig } from "../types/module.js";
@@ -21,396 +27,435 @@ import type { ClientPermission, ModuleManifest } from "../types/index.js";
 (window as unknown as Record<string, unknown>)["getSession"] = getSession;
 
 class Client {
-    moduleObjs: Module[] = [];
-    modulesInfo: ModuleInfo[] = [];
-    loadedModules: string[] = [];
-    users: string[] = [];
+	moduleObjs: Module[] = [];
+	modulesInfo: ModuleInfo[] = [];
+	loadedModules: string[] = [];
+	users: string[] = [];
 
-    readonly defModules = ["clock", "dbbutton", "clientDisplay", "clientDetailes", "alert", "userManager", "personalization"];
+	readonly defModules = [
+		"clock",
+		"dbbutton",
+		"clientDisplay",
+		"clientDetailes",
+		"alert",
+		"userManager",
+		"personalization",
+	];
 
-    readonly modulePositions: ModulePosition[] = [
-        "top_bar", "top_left", "top_center", "top_right",
-        "upper_third", "middle_center", "lower_third",
-        "bottom_left", "bottom_center", "bottom_right", "bottom_bar",
-        "fullscreen_above", "fullscreen_below"
-    ];
+	readonly modulePositions: ModulePosition[] = [
+		"top_bar",
+		"top_left",
+		"top_center",
+		"top_right",
+		"upper_third",
+		"middle_center",
+		"lower_third",
+		"bottom_left",
+		"bottom_center",
+		"bottom_right",
+		"bottom_bar",
+		"fullscreen_above",
+		"fullscreen_below",
+	];
 
-    selectPosition(position: ModulePosition): Element | null {
-        const posClasses = position.replace("_", " ");
-        const posDiv = document.getElementsByClassName(posClasses);
-        if (posDiv.length > 0) {
-            const wrapper = posDiv[0].getElementsByClassName("container");
-            if (wrapper.length > 0) return wrapper[0];
-        }
-        return null;
-    }
+	selectPosition(position: ModulePosition): Element | null {
+		const posClasses = position.replace("_", " ");
+		const posDiv = document.getElementsByClassName(posClasses);
+		if (posDiv.length > 0) {
+			const wrapper = posDiv[0].getElementsByClassName("container");
+			if (wrapper.length > 0) return wrapper[0];
+		}
+		return null;
+	}
 
-    updateWrapperStates(): void {
-        for (const position of this.modulePositions) {
-            const wrapper = this.selectPosition(position);
-            if (!wrapper) continue;
-            const moduleWrappers = wrapper.getElementsByClassName("module");
-            let showWrapper = false;
-            for (const mw of Array.from(moduleWrappers)) {
-                const style = (mw as HTMLElement).style.position;
-                if (style === "" || style === "static") { showWrapper = true; break; }
-            }
-            (wrapper as HTMLElement).style.display = showWrapper ? "block" : "none";
-        }
-    }
+	updateWrapperStates(): void {
+		for (const position of this.modulePositions) {
+			const wrapper = this.selectPosition(position);
+			if (!wrapper) continue;
+			const moduleWrappers = wrapper.getElementsByClassName("module");
+			let showWrapper = false;
+			for (const mw of Array.from(moduleWrappers)) {
+				const style = (mw as HTMLElement).style.position;
+				if (style === "" || style === "static") {
+					showWrapper = true;
+					break;
+				}
+			}
+			(wrapper as HTMLElement).style.display = showWrapper ? "block" : "none";
+		}
+	}
 
-    hideModule(module: Module, speed: number, callback: () => void, _options: unknown = {}): void {
-        const moduleWrapper = document.getElementById(module.id);
-        if (moduleWrapper) {
-            moduleWrapper.style.transition = `opacity ${speed / 1000}s`;
-            moduleWrapper.style.opacity = "0";
-            moduleWrapper.classList.add("hidden");
-            module.showHideTimer = setTimeout(() => {
-                moduleWrapper.style.position = "fixed";
-                this.updateWrapperStates();
-                callback();
-            }, speed);
-        } else {
-            callback();
-        }
-    }
+	hideModule(module: Module, speed: number, callback: () => void, _options: unknown = {}): void {
+		const moduleWrapper = document.getElementById(module.id);
+		if (moduleWrapper) {
+			moduleWrapper.style.transition = `opacity ${speed / 1000}s`;
+			moduleWrapper.style.opacity = "0";
+			moduleWrapper.classList.add("hidden");
+			module.showHideTimer = setTimeout(() => {
+				moduleWrapper.style.position = "fixed";
+				this.updateWrapperStates();
+				callback();
+			}, speed);
+		} else {
+			callback();
+		}
+	}
 
-    showModule(module: Module, speed: number, callback: () => void, _options: unknown = {}): void {
-        const moduleWrapper = document.getElementById(module.id);
-        if (moduleWrapper) {
-            moduleWrapper.style.transition = `opacity ${speed / 1000}s`;
-            moduleWrapper.style.position = "static";
-            moduleWrapper.classList.remove("hidden");
-            this.updateWrapperStates();
-            void moduleWrapper.parentElement?.parentElement?.offsetHeight; // force reflow
-            moduleWrapper.style.opacity = "1";
-            module.showHideTimer = setTimeout(callback, speed);
-        } else {
-            callback();
-        }
-    }
+	showModule(module: Module, speed: number, callback: () => void, _options: unknown = {}): void {
+		const moduleWrapper = document.getElementById(module.id);
+		if (moduleWrapper) {
+			moduleWrapper.style.transition = `opacity ${speed / 1000}s`;
+			moduleWrapper.style.position = "static";
+			moduleWrapper.classList.remove("hidden");
+			this.updateWrapperStates();
+			void moduleWrapper.parentElement?.parentElement?.offsetHeight; // force reflow
+			moduleWrapper.style.opacity = "1";
+			module.showHideTimer = setTimeout(callback, speed);
+		} else {
+			callback();
+		}
+	}
 
-    async loadFile(url: string, type: "module" | "script" | "style"): Promise<void> {
-        if (type === "style") {
-            return new Promise((resolve) => {
-                const link = document.createElement("link");
-                link.rel = "stylesheet";
-                link.type = "text/css";
-                link.href = url;
-                link.onload = () => resolve();
-                link.onerror = () => { console.error("Error loading style:", url); resolve(); };
-                document.head.appendChild(link);
-            });
-        }
+	async loadFile(url: string, type: "module" | "script" | "style"): Promise<void> {
+		if (type === "style") {
+			return new Promise((resolve) => {
+				const link = document.createElement("link");
+				link.rel = "stylesheet";
+				link.type = "text/css";
+				link.href = url;
+				link.onload = () => resolve();
+				link.onerror = () => {
+					console.error("Error loading style:", url);
+					resolve();
+				};
+				document.head.appendChild(link);
+			});
+		}
 
-        if (type === "module" && this.loadedModules.includes(url)) return;
+		if (type === "module" && this.loadedModules.includes(url)) return;
 
-        return new Promise((resolve) => {
-            const script = document.createElement("script");
-            script.type = "text/javascript";
-            script.src = url;
-            script.onload = () => resolve();
-            script.onerror = () => {
-                console.error("Error loading script:", url);
-                resolve();
-            };
-            document.body.appendChild(script);
-            if (type === "module") this.loadedModules.push(url);
-        });
-    }
+		return new Promise((resolve) => {
+			const script = document.createElement("script");
+			script.type = "text/javascript";
+			script.src = url;
+			script.onload = () => resolve();
+			script.onerror = () => {
+				console.error("Error loading script:", url);
+				resolve();
+			};
+			document.body.appendChild(script);
+			if (type === "module") this.loadedModules.push(url);
+		});
+	}
 
-    loadModulesInfo(): void {
-        const configInUse = getConfigInUse();
-        configInUse.modules.forEach((moduleConfig, index) => {
-            const moduleName = moduleConfig.module;
-            const folder = this.defModules.includes(moduleName)
-                ? `/modules/default/${moduleName}/`
-                : `/modules/${moduleName}/`;
+	loadModulesInfo(): void {
+		const configInUse = getConfigInUse();
+		configInUse.modules.forEach((moduleConfig, index) => {
+			const moduleName = moduleConfig.module;
+			const folder = this.defModules.includes(moduleName)
+				? `/modules/default/${moduleName}/`
+				: `/modules/${moduleName}/`;
 
-            this.modulesInfo.push({
-                index,
-                id: `${moduleName}_${index}`,
-                name: moduleName,
-                folder,
-                file: moduleName + ".js",
-                position: moduleConfig.position ?? "middle_center",
-                hiddenOnStartup: moduleConfig.hiddenOnStartup,
-                hidden: moduleConfig.hiddenOnStartup,
-                header: moduleConfig.header,
-                config: moduleConfig.config ?? {},
-                classes: moduleConfig.classes ? `${moduleConfig.classes} ${moduleName}` : moduleName
-            });
-        });
-    }
+			this.modulesInfo.push({
+				index,
+				id: `${moduleName}_${index}`,
+				name: moduleName,
+				folder,
+				file: moduleName + ".js",
+				position: moduleConfig.position ?? "middle_center",
+				hiddenOnStartup: moduleConfig.hiddenOnStartup,
+				hidden: moduleConfig.hiddenOnStartup,
+				header: moduleConfig.header,
+				config: moduleConfig.config ?? {},
+				classes: moduleConfig.classes ? `${moduleConfig.classes} ${moduleName}` : moduleName,
+			});
+		});
+	}
 
-    resolveScriptUrl(script: string, moduleFolder: string): string {
-        if (script.startsWith("http") || script.startsWith("/")) return script;
-        if (script.includes("/")) return moduleFolder + "node_modules/" + script;
-        // bare filename like "moment.js" — resolve as a same-named package folder
-        const packageName = script.replace(/\.js$/, "");
-        return moduleFolder + "node_modules/" + packageName + "/" + script;
-    }
+	resolveScriptUrl(script: string, moduleFolder: string): string {
+		if (script.startsWith("http") || script.startsWith("/")) return script;
+		if (script.includes("/")) return moduleFolder + "node_modules/" + script;
+		// bare filename like "moment.js" — resolve as a same-named package folder
+		const packageName = script.replace(/\.js$/, "");
+		return moduleFolder + "node_modules/" + packageName + "/" + script;
+	}
 
-    async fetchManifest(moduleInfo: ModuleInfo): Promise<ClientPermission[] | null> {
-        const knownPermissions = new Set<ClientPermission>([
-            "geo.location", "notifications.send", "camera", "microphone",
-            "network.http", "network.ws", "user.name", "user.switch",
-        ]);
+	async fetchManifest(moduleInfo: ModuleInfo): Promise<ClientPermission[] | null> {
+		const knownPermissions = new Set<ClientPermission>([
+			"geo.location",
+			"notifications.send",
+			"camera",
+			"microphone",
+			"network.http",
+			"network.ws",
+			"user.name",
+			"user.switch",
+		]);
 
-        let manifest: ModuleManifest;
-        try {
-            const res = await fetch(moduleInfo.folder + "module.json");
-            if (!res.ok) {
-                console.warn(`[Security] ${moduleInfo.name}: module.json missing — module will not load`);
-                return null;
-            }
-            manifest = await res.json() as ModuleManifest;
-        } catch {
-            console.warn(`[Security] ${moduleInfo.name}: failed to fetch module.json — module will not load`);
-            return null;
-        }
+		let manifest: ModuleManifest;
+		try {
+			const res = await fetch(moduleInfo.folder + "module.json");
+			if (!res.ok) {
+				console.warn(`[Security] ${moduleInfo.name}: module.json missing — module will not load`);
+				return null;
+			}
+			manifest = (await res.json()) as ModuleManifest;
+		} catch {
+			console.warn(
+				`[Security] ${moduleInfo.name}: failed to fetch module.json — module will not load`,
+			);
+			return null;
+		}
 
-        const declared = manifest.client?.permissions ?? [];
-        const unknown = declared.filter(p => !knownPermissions.has(p));
-        if (unknown.length > 0) {
-            console.warn(`[Security] ${moduleInfo.name}: unknown client permissions [${unknown.join(", ")}] — module will not load`);
-            return null;
-        }
+		const declared = manifest.client?.permissions ?? [];
+		const unknown = declared.filter((p) => !knownPermissions.has(p));
+		if (unknown.length > 0) {
+			console.warn(
+				`[Security] ${moduleInfo.name}: unknown client permissions [${unknown.join(", ")}] — module will not load`,
+			);
+			return null;
+		}
 
-        console.log(`[Security] ${moduleInfo.name}: client permissions granted [${declared.join(", ") || "none"}]`);
-        return declared;
-    }
+		console.log(
+			`[Security] ${moduleInfo.name}: client permissions granted [${declared.join(", ") || "none"}]`,
+		);
+		return declared;
+	}
 
-    async loadModule(moduleInfo: ModuleInfo): Promise<void> {
-        let permissions: ClientPermission[] = [];
-        if (!this.defModules.includes(moduleInfo.name)) {
-            const granted = await this.fetchManifest(moduleInfo);
-            if (granted === null) return;
-            permissions = granted;
-        }
+	async loadModule(moduleInfo: ModuleInfo): Promise<void> {
+		let permissions: ClientPermission[] = [];
+		if (!this.defModules.includes(moduleInfo.name)) {
+			const granted = await this.fetchManifest(moduleInfo);
+			if (granted === null) return;
+			permissions = granted;
+		}
 
-        const url = moduleInfo.folder + moduleInfo.file;
-        await this.loadFile(url, "module");
+		const url = moduleInfo.folder + moduleInfo.file;
+		await this.loadFile(url, "module");
 
-        const ModuleClass = (window as unknown as Record<string, new () => Module>)[moduleInfo.name];
-        if (!ModuleClass) {
-            console.error(`Module class not found on window: ${moduleInfo.name}`);
-            return;
-        }
-        const module = new ModuleClass();
-        module.setData(moduleInfo);
-        module.setPermissions(permissions);
+		const ModuleClass = (window as unknown as Record<string, new () => Module>)[moduleInfo.name];
+		if (!ModuleClass) {
+			console.error(`Module class not found on window: ${moduleInfo.name}`);
+			return;
+		}
+		const module = new ModuleClass();
+		module.setData(moduleInfo);
+		module.setPermissions(permissions);
 
-        for (const script of module.getScripts()) {
-            await this.loadFile(this.resolveScriptUrl(script, moduleInfo.folder), "script");
-        }
+		for (const script of module.getScripts()) {
+			await this.loadFile(this.resolveScriptUrl(script, moduleInfo.folder), "script");
+		}
 
-        for (const style of module.getStyles()) {
-            const styleUrl = style.startsWith("http") || style.startsWith("/")
-                ? style
-                : moduleInfo.folder + style;
-            await this.loadFile(styleUrl, "style");
-        }
-        this.moduleObjs.push(module);
-        console.log(`Module loaded: ${module.name}`);
-    }
+		for (const style of module.getStyles()) {
+			const styleUrl =
+				style.startsWith("http") || style.startsWith("/") ? style : moduleInfo.folder + style;
+			await this.loadFile(styleUrl, "style");
+		}
+		this.moduleObjs.push(module);
+		console.log(`Module loaded: ${module.name}`);
+	}
 
-    async loadModules(): Promise<void> {
-        this.loadModulesInfo();
-        for (const moduleInfo of this.modulesInfo) {
-            await this.loadModule(moduleInfo);
-        }
-    }
+	async loadModules(): Promise<void> {
+		this.loadModulesInfo();
+		for (const moduleInfo of this.modulesInfo) {
+			await this.loadModule(moduleInfo);
+		}
+	}
 
-    async createDomObjects(): Promise<void> {
-        for (const moduleObj of this.moduleObjs) {
-            const newWrapper = await moduleObj.createDom();
-            if (newWrapper) {
-                newWrapper.className = moduleObj.classes + " module";
-                newWrapper.id = moduleObj.id;
-                this.selectPosition(moduleObj.position)?.appendChild(newWrapper);
-            }
-        }
-    }
+	async createDomObjects(): Promise<void> {
+		for (const moduleObj of this.moduleObjs) {
+			const newWrapper = await moduleObj.createDom();
+			if (newWrapper) {
+				newWrapper.className = moduleObj.classes + " module";
+				newWrapper.id = moduleObj.id;
+				this.selectPosition(moduleObj.position)?.appendChild(newWrapper);
+			}
+		}
+	}
 
-    moduleNeedsUpdate(module: Module, newContent: HTMLElement): boolean {
-        const moduleWrapper = document.getElementById(module.id);
-        if (!moduleWrapper) return false;
-        const temp = document.createElement("div");
-        temp.appendChild(newContent);
-        return temp.innerHTML !== moduleWrapper.innerHTML;
-    }
+	moduleNeedsUpdate(module: Module, newContent: HTMLElement): boolean {
+		const moduleWrapper = document.getElementById(module.id);
+		if (!moduleWrapper) return false;
+		const temp = document.createElement("div");
+		temp.appendChild(newContent);
+		return temp.innerHTML !== moduleWrapper.innerHTML;
+	}
 
-    updateModuleContent(module: Module, newContent?: HTMLElement): void {
-        const moduleWrapper = document.getElementById(module.id);
-        if (!moduleWrapper) return;
-        moduleWrapper.innerHTML = "";
-        if (newContent) moduleWrapper.appendChild(newContent);
-    }
+	updateModuleContent(module: Module, newContent?: HTMLElement): void {
+		const moduleWrapper = document.getElementById(module.id);
+		if (!moduleWrapper) return;
+		moduleWrapper.innerHTML = "";
+		if (newContent) moduleWrapper.appendChild(newContent);
+	}
 
-    updateDom(module: Module, _updateOptions: unknown = null): void {
-        let contentPromise = module.createDom();
-        if (!(contentPromise instanceof Promise)) {
-            contentPromise = Promise.resolve(contentPromise);
-        }
-        contentPromise.then((newContent) => {
-            if (!module.hidden && this.moduleNeedsUpdate(module, newContent)) {
-                this.updateModuleContent(module, newContent);
-            }
-        }).catch((err) => console.error(err));
-    }
+	updateDom(module: Module, _updateOptions: unknown = null): void {
+		let contentPromise = module.createDom();
+		if (!(contentPromise instanceof Promise)) {
+			contentPromise = Promise.resolve(contentPromise);
+		}
+		contentPromise
+			.then((newContent) => {
+				if (!module.hidden && this.moduleNeedsUpdate(module, newContent)) {
+					this.updateModuleContent(module, newContent);
+				}
+			})
+			.catch((err) => console.error(err));
+	}
 
-    sendNotification(notification: string, payload: unknown, sender: Module, sendTo?: Module): void {
-        for (const module of this.moduleObjs) {
-            if (module !== sender && (!sendTo || module === sendTo)) {
-                module.notificationReceived(notification, payload, sender);
-            }
-        }
-    }
+	sendNotification(notification: string, payload: unknown, sender: Module, sendTo?: Module): void {
+		for (const module of this.moduleObjs) {
+			if (module !== sender && (!sendTo || module === sendTo)) {
+				module.notificationReceived(notification, payload, sender);
+			}
+		}
+	}
 
-    findModuleByID(moduleID: string): Module | undefined {
-        return this.moduleObjs.find((m) => m.id === moduleID);
-    }
+	findModuleByID(moduleID: string): Module | undefined {
+		return this.moduleObjs.find((m) => m.id === moduleID);
+	}
 
-    async startModules(): Promise<void> {
-        for (const module of this.moduleObjs) {
-            await module.start();
-        }
-        this.sendNotification("ALL_MODULES_STARTED", "", {} as Module);
-    }
+	async startModules(): Promise<void> {
+		for (const module of this.moduleObjs) {
+			await module.start();
+		}
+		this.sendNotification("ALL_MODULES_STARTED", "", {} as Module);
+	}
 
-    async init(): Promise<void> {
-        await this.loadModules();
-        await this.createDomObjects();
-        await this.startModules();
-    }
+	async init(): Promise<void> {
+		await this.loadModules();
+		await this.createDomObjects();
+		await this.startModules();
+	}
 
-    async reload(): Promise<void> {
-        this.modulesInfo = [];
-        for (const module of this.moduleObjs) module.suspend();
-        this.moduleObjs = [];
-        await this.init();
-    }
+	async reload(): Promise<void> {
+		this.modulesInfo = [];
+		for (const module of this.moduleObjs) module.suspend();
+		this.moduleObjs = [];
+		await this.init();
+	}
 }
 
 function setupTrackerSocket(tracker: ClientSocket): void {
-    tracker.socket.on("connect", () => {
-        setInterval(() => {
-            tracker.socket.emit("heartbeat");
-        }, 10000);
-    });
+	tracker.socket.on("connect", () => {
+		setInterval(() => {
+			tracker.socket.emit("heartbeat");
+		}, 10000);
+	});
 
-    tracker.socket.on("HIDE_MODULE_Y", (payload: { id: string }) => {
-        const client = (window as unknown as Record<string, Client>)["_client"];
-        client?.findModuleByID(payload.id)?.hide(300);
-    });
+	tracker.socket.on("HIDE_MODULE_Y", (payload: { id: string }) => {
+		const client = (window as unknown as Record<string, Client>)["_client"];
+		client?.findModuleByID(payload.id)?.hide(300);
+	});
 
-    tracker.socket.on("SHOW_MODULE_Y", (payload: { id: string }) => {
-        const client = (window as unknown as Record<string, Client>)["_client"];
-        client?.findModuleByID(payload.id)?.show(300);
-    });
+	tracker.socket.on("SHOW_MODULE_Y", (payload: { id: string }) => {
+		const client = (window as unknown as Record<string, Client>)["_client"];
+		client?.findModuleByID(payload.id)?.show(300);
+	});
 
-    tracker.socket.on("SUSPEND_MODULE_Y", (payload: { id: string }) => {
-        const client = (window as unknown as Record<string, Client>)["_client"];
-        client?.findModuleByID(payload.id)?.suspend();
-    });
+	tracker.socket.on("SUSPEND_MODULE_Y", (payload: { id: string }) => {
+		const client = (window as unknown as Record<string, Client>)["_client"];
+		client?.findModuleByID(payload.id)?.suspend();
+	});
 
-    tracker.socket.on("RESUME_MODULE_Y", (payload: { id: string }) => {
-        const client = (window as unknown as Record<string, Client>)["_client"];
-        client?.findModuleByID(payload.id)?.resume();
-    });
+	tracker.socket.on("RESUME_MODULE_Y", (payload: { id: string }) => {
+		const client = (window as unknown as Record<string, Client>)["_client"];
+		client?.findModuleByID(payload.id)?.resume();
+	});
 
-    tracker.socket.on("CHANGE_USER_Y", (payload: { user: string }) => {
-        const userService = (window as unknown as Record<string, UserService>)["_userService"];
-        userService?.changeUser(payload.user);
-    });
+	tracker.socket.on("CHANGE_USER_Y", (payload: { user: string }) => {
+		const userService = (window as unknown as Record<string, UserService>)["_userService"];
+		userService?.changeUser(payload.user);
+	});
 
-    tracker.socket.on("TOGGLE_CURSOR_Y", (payload: { visible: boolean }) => {
-        document.documentElement.style.cursor = payload.visible ? "default" : "";
-    });
+	tracker.socket.on("TOGGLE_CURSOR_Y", (payload: { visible: boolean }) => {
+		document.documentElement.style.cursor = payload.visible ? "default" : "";
+	});
 }
 
 function createPanelNav(session: SessionInfo): void {
-    const nav = document.createElement("nav");
-    nav.id = "panel-nav";
+	const nav = document.createElement("nav");
+	nav.id = "panel-nav";
 
-    const title = document.createElement("span");
-    title.id = "panel-nav-title";
-    title.textContent = "HA-Mirrors";
+	const title = document.createElement("span");
+	title.id = "panel-nav-title";
+	title.textContent = "HA-Mirrors";
 
-    const right = document.createElement("div");
-    right.id = "panel-nav-right";
+	const right = document.createElement("div");
+	right.id = "panel-nav-right";
 
-    const userSpan = document.createElement("span");
-    userSpan.id = "panel-nav-user";
-    userSpan.textContent = session.displayName;
+	const userSpan = document.createElement("span");
+	userSpan.id = "panel-nav-user";
+	userSpan.textContent = session.displayName;
 
-    const logoutBtn = document.createElement("button");
-    logoutBtn.id = "panel-nav-logout";
-    logoutBtn.textContent = "Log out";
-    logoutBtn.addEventListener("click", async () => {
-        await fetch("/auth/logout", { method: "POST" });
-        window.location.href = "/login";
-    });
+	const logoutBtn = document.createElement("button");
+	logoutBtn.id = "panel-nav-logout";
+	logoutBtn.textContent = "Log out";
+	logoutBtn.addEventListener("click", async () => {
+		await fetch("/auth/logout", { method: "POST" });
+		window.location.href = "/login";
+	});
 
-    right.appendChild(userSpan);
-    right.appendChild(logoutBtn);
-    nav.appendChild(title);
-    nav.appendChild(right);
-    document.body.insertBefore(nav, document.body.firstChild);
+	right.appendChild(userSpan);
+	right.appendChild(logoutBtn);
+	nav.appendChild(title);
+	nav.appendChild(right);
+	document.body.insertBefore(nav, document.body.firstChild);
 }
 
 async function startClient(): Promise<void> {
-    try {
-        const clientConfig = await fetchConfig() as ClientConfig;
-        setClientConfig(clientConfig);
+	try {
+		const clientConfig = (await fetchConfig()) as ClientConfig;
+		setClientConfig(clientConfig);
 
-        let initialModules = clientConfig.defaultModules;
+		let initialModules = clientConfig.defaultModules;
 
-        if (clientConfig.type === "dashboard") {
-            const sessionRes = await fetch("/auth/me");
-            if (!sessionRes.ok) {
-                window.location.href = "/login";
-                return;
-            }
-            const session = await sessionRes.json() as SessionInfo;
-            setSession(session);
-            createPanelNav(session);
+		if (clientConfig.type === "dashboard") {
+			const sessionRes = await fetch("/auth/me");
+			if (!sessionRes.ok) {
+				window.location.href = "/login";
+				return;
+			}
+			const session = (await sessionRes.json()) as SessionInfo;
+			setSession(session);
+			createPanelNav(session);
 
-            const roleRes = await fetch(`/get-user/${session.role}`, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: clientConfig.name,
-            });
-            if (roleRes.ok) {
-                const roleConfig = await roleRes.json() as UserConfig;
-                initialModules = roleConfig.modules;
-            }
-        }
+			const roleRes = await fetch(`/get-user/${session.role}`, {
+				method: "POST",
+				headers: { "Content-Type": "text/plain" },
+				body: clientConfig.name,
+			});
+			if (roleRes.ok) {
+				const roleConfig = (await roleRes.json()) as UserConfig;
+				initialModules = roleConfig.modules;
+			}
+		}
 
-        const configInUse: ActiveConfig = { name: clientConfig.name, modules: initialModules };
-        setConfigInUse(configInUse);
+		const configInUse: ActiveConfig = { name: clientConfig.name, modules: initialModules };
+		setConfigInUse(configInUse);
 
-        const freshRegions = document.getElementById("all-regions")?.innerHTML ?? "";
-        setFreshRegions(freshRegions);
+		const freshRegions = document.getElementById("all-regions")?.innerHTML ?? "";
+		setFreshRegions(freshRegions);
 
-        const trackerSocket = new ClientSocket("/", { clientName: clientConfig.name, clientType: "mirror" });
-        (window as unknown as Record<string, unknown>)["trackerSocket"] = trackerSocket;
-        setupTrackerSocket(trackerSocket);
+		const trackerSocket = new ClientSocket("/", {
+			clientName: clientConfig.name,
+			clientType: "mirror",
+		});
+		(window as unknown as Record<string, unknown>)["trackerSocket"] = trackerSocket;
+		setupTrackerSocket(trackerSocket);
 
-        const client = new Client();
-        setClient(client);
+		const client = new Client();
+		setClient(client);
 
-        // Also expose on window for setupTrackerSocket callbacks
-        (window as unknown as Record<string, unknown>)["_client"] = client;
+		// Also expose on window for setupTrackerSocket callbacks
+		(window as unknown as Record<string, unknown>)["_client"] = client;
 
-        const userService = new UserService();
-        (window as unknown as Record<string, unknown>)["_userService"] = userService;
+		const userService = new UserService();
+		(window as unknown as Record<string, unknown>)["_userService"] = userService;
 
-        await client.init();
-    } catch (error) {
-        console.error("Error during client startup:", error);
-    }
+		await client.init();
+	} catch (error) {
+		console.error("Error during client startup:", error);
+	}
 }
 
 startClient();

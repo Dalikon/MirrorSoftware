@@ -9,6 +9,12 @@
     {
       "module": "helloworld",
       "position": "bottom_right",
+      "config": {},
+      "hiddenOnStartup": true
+    },
+    {
+      "module": "clock",
+      "position": "middle_center",
       "config": {}
     }
   ]

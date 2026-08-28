@@ -1,26 +1,23 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2020", "DOM"],
-    "strict": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
-    "skipLibCheck": true
-  },
-  "include": [
-    "js/clientState.ts",
-    "js/utils.ts",
-    "js/clientSocket.ts",
-    "js/module.ts",
-    "js/UserService.ts",
-    "js/clientMain.ts",
-    "types/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+	"compilerOptions": {
+		"target": "ES2020",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2020", "DOM"],
+		"strict": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"skipLibCheck": true
+	},
+	"include": [
+		"js/clientState.ts",
+		"js/utils.ts",
+		"js/clientSocket.ts",
+		"js/module.ts",
+		"js/UserService.ts",
+		"js/clientMain.ts",
+		"types/**/*"
+	],
+	"exclude": ["node_modules", "dist"]
 }

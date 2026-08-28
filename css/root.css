@@ -2,73 +2,73 @@
    Module-specific styles are loaded by each module via getStyles(). */
 
 :root {
-  --color-text: #c8c8c8;
-  --color-text-dimmed: #666;
-  --color-text-bright: #fff;
-  --color-background: #111;
-  --panel-surface: #1a1a1a;
-  --panel-border: #262626;
-  --panel-accent: #3b82f6;
-  --panel-radius: 8px;
-  --font-size: 16px;
-  --nav-height: 48px;
-  --gap-body-top: 0px;
-  --gap-body-right: 0px;
-  --gap-body-bottom: 0px;
-  --gap-body-left: 0px;
+	--color-text: #c8c8c8;
+	--color-text-dimmed: #666;
+	--color-text-bright: #fff;
+	--color-background: #111;
+	--panel-surface: #1a1a1a;
+	--panel-border: #262626;
+	--panel-accent: #3b82f6;
+	--panel-radius: 8px;
+	--font-size: 16px;
+	--nav-height: 48px;
+	--gap-body-top: 0px;
+	--gap-body-right: 0px;
+	--gap-body-bottom: 0px;
+	--gap-body-left: 0px;
 }
 
 html {
-  cursor: default;
-  overflow: auto;
+	cursor: default;
+	overflow: auto;
 }
 
 ::-webkit-scrollbar {
-  display: block;
-  width: 5px;
+	display: block;
+	width: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+	background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2e2e2e;
-  border-radius: 3px;
+	background: #2e2e2e;
+	border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+	background: #444;
 }
 
 body {
-  position: static;
-  height: auto;
-  width: auto;
-  min-height: 100vh;
-  user-select: auto;
-  padding-top: var(--nav-height);
+	position: static;
+	height: auto;
+	width: auto;
+	min-height: 100vh;
+	user-select: auto;
+	padding-top: var(--nav-height);
 }
 
 #all-regions {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 2rem 2rem 3rem;
-  box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+	max-width: 960px;
+	margin: 0 auto;
+	padding: 2rem 2rem 3rem;
+	box-sizing: border-box;
 }
 
 .region:not(.fullscreen) {
-  position: static;
-  width: auto;
-  transform: none;
-  top: auto;
-  right: auto;
-  bottom: auto;
-  left: auto;
-  text-align: left;
+	position: static;
+	width: auto;
+	transform: none;
+	top: auto;
+	right: auto;
+	bottom: auto;
+	left: auto;
+	text-align: left;
 }
 
 /* Kill transforms that have higher specificity (3 classes) than the :not() rule */
@@ -81,65 +81,65 @@ body {
 .region.bottom.center,
 .region.bottom.left,
 .region.bottom.right {
-  transform: none;
-  top: auto;
-  bottom: auto;
-  left: auto;
-  right: auto;
+	transform: none;
+	top: auto;
+	bottom: auto;
+	left: auto;
+	right: auto;
 }
 
 .region.top.bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-start;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: flex-start;
 }
 
 .region.bottom.bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-top: auto;
-  padding-top: 1.5rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: flex-start;
+	margin-top: auto;
+	padding-top: 1.5rem;
 }
 
 .region.fullscreen {
-  position: fixed !important;
-  inset: 0;
-  pointer-events: none;
+	position: fixed !important;
+	inset: 0;
+	pointer-events: none;
 }
 
 .region.fullscreen.above {
-  z-index: 1000;
+	z-index: 1000;
 }
 
 .region.fullscreen.below {
-  z-index: -1;
+	z-index: -1;
 }
 
 .module {
-  background: var(--panel-surface);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--panel-radius);
-  padding: 1.25rem 1.5rem;
-  margin-bottom: 0.75rem;
+	background: var(--panel-surface);
+	border: 1px solid var(--panel-border);
+	border-radius: var(--panel-radius);
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 0.75rem;
 }
 
 .module:last-child {
-  margin-bottom: 0;
+	margin-bottom: 0;
 }
 
 .region.fullscreen .module {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  margin-bottom: 0;
+	background: transparent;
+	border: none;
+	border-radius: 0;
+	padding: 0;
+	margin-bottom: 0;
 }
 
 header {
-  border-bottom-color: #2e2e2e;
+	border-bottom-color: #2e2e2e;
 }
 
 /* ----------------------------------------------------------
@@ -147,52 +147,54 @@ header {
    ---------------------------------------------------------- */
 
 #panel-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9000;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  height: 48px;
-  background: #0d0d0d;
-  border-bottom: 1px solid var(--panel-border);
-  max-width: 100%;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 9000;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 2rem;
+	height: 48px;
+	background: #0d0d0d;
+	border-bottom: 1px solid var(--panel-border);
+	max-width: 100%;
 }
 
 #panel-nav-title {
-  font-size: var(--font-size-xsmall);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--color-text-dimmed);
+	font-size: var(--font-size-xsmall);
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: var(--color-text-dimmed);
 }
 
 #panel-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
 }
 
 #panel-nav-user {
-  font-size: var(--font-size-xsmall);
-  color: var(--color-text-dimmed);
+	font-size: var(--font-size-xsmall);
+	color: var(--color-text-dimmed);
 }
 
 #panel-nav-logout {
-  padding: 0.25rem 0.75rem;
-  background: transparent;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: var(--color-text-dimmed);
-  font-size: var(--font-size-xsmall);
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+	padding: 0.25rem 0.75rem;
+	background: transparent;
+	border: 1px solid #333;
+	border-radius: 4px;
+	color: var(--color-text-dimmed);
+	font-size: var(--font-size-xsmall);
+	letter-spacing: 0.05em;
+	cursor: pointer;
+	transition:
+		border-color 0.15s,
+		color 0.15s;
 }
 
 #panel-nav-logout:hover {
-  border-color: var(--color-text-bright);
-  color: var(--color-text-bright);
+	border-color: var(--color-text-bright);
+	color: var(--color-text-bright);
 }

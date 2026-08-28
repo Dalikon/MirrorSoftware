@@ -10,7 +10,7 @@
     "username": "dala",
     "displayName": "Dalibor",
     "role": "user",
-    "passwordHash": "8a0bbc1327db3eaf423c806d3e349a775302213bc99c1959f7944351743231d97124b9f9d9c5c41c93a02054d5ffb94825701eae88f111921449f3baa91341a8",
-    "salt": "1259328f162155c624b39660693070d0"
+    "passwordHash": "85ac243709a3811ca1bdccf4ea9391cc3c2d00fc38d1608c18e81058bcf856bcec7e2af3df341f5f7a9700e92f1b9c6a667673d8c67d2b3c60f1d7d44f873ac1",
+    "salt": "04897027076d3d3f1fb89602505d0848"
   }
 ]

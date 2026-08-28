@@ -2,46 +2,46 @@
 
 class clock extends Module {
 	// Module config defaults.
-    defaults (){
-        this.defaults = {
-		    displayType: "digital", // options: digital, analog, both
+	defaults() {
+		this.defaults = {
+			displayType: "digital", // options: digital, analog, both
 
-		    timeFormat: 24,
-		    timezone: null,
+			timeFormat: 24,
+			timezone: null,
 
-		    displaySeconds: true,
-		    showPeriod: true,
-		    showPeriodUpper: false,
-		    clockBold: false,
-		    showDate: true,
-		    showTime: true,
-		    showWeek: false,
-		    dateFormat: "dddd, LL",
-		    sendNotifications: false,
+			displaySeconds: true,
+			showPeriod: true,
+			showPeriodUpper: false,
+			clockBold: false,
+			showDate: true,
+			showTime: true,
+			showWeek: false,
+			dateFormat: "dddd, LL",
+			sendNotifications: false,
 
-		// specific to the analog clock
-		    analogSize: "200px",
-		    analogFace: "simple", // options: 'none', 'simple', 'face-###' (where ### is 001 to 012 inclusive)
-		    analogPlacement: "bottom", // options: 'top', 'bottom', 'left', 'right'
-		    analogShowDate: "top", // OBSOLETE, can be replaced with analogPlacement and showTime, options: false, 'top', or 'bottom'
-		    secondsColor: "#888888",
+			// specific to the analog clock
+			analogSize: "200px",
+			analogFace: "simple", // options: 'none', 'simple', 'face-###' (where ### is 001 to 012 inclusive)
+			analogPlacement: "bottom", // options: 'top', 'bottom', 'left', 'right'
+			analogShowDate: "top", // OBSOLETE, can be replaced with analogPlacement and showTime, options: false, 'top', or 'bottom'
+			secondsColor: "#888888",
 
-		    showSunTimes: false,
-		    showMoonTimes: false, // options: false, 'times' (rise/set), 'percent' (lit percent), 'phase' (current phase), or 'both' (percent & phase)
-	    	lat: 47.630539,
-		    lon: -122.344147
-        }
-    }
+			showSunTimes: false,
+			showMoonTimes: false, // options: false, 'times' (rise/set), 'percent' (lit percent), 'phase' (current phase), or 'both' (percent & phase)
+			lat: 47.630539,
+			lon: -122.344147,
+		};
+	}
 	// Define required scripts.
-	getScripts () {
+	getScripts() {
 		return ["moment.js", "moment-timezone.js", "suncalc.js"];
 	}
 	// Define styles.
-	getStyles () {
+	getStyles() {
 		return ["clock_styles.css"];
 	}
 	// Define start sequence.
-	start () {
+	start() {
 		console.log(`Starting module: ${this.name}`);
 
 		// Schedule update interval.
@@ -90,7 +90,7 @@ class clock extends Module {
 		moment.locale(this.config.language);
 	}
 	// Override dom generator.
-	createDom () {
+	createDom() {
 		const wrapper = document.createElement("div");
 		wrapper.classList.add("clock-grid");
 
@@ -106,7 +106,7 @@ class clock extends Module {
 		 * Create wrappers for DIGITAL clock
 		 */
 		const dateWrapper = document.createElement("div");
-        const timeWrapper = document.createElement("div");
+		const timeWrapper = document.createElement("div");
 		const secondsWrapper = document.createElement("sup");
 		const periodWrapper = document.createElement("span");
 		const sunWrapper = document.createElement("div");
@@ -176,15 +176,19 @@ class clock extends Module {
 			} else if (now.isBefore(sunTimes.sunset)) {
 				nextEvent = sunTimes.sunset;
 			} else {
-				const tomorrowSunTimes = SunCalc.getTimes(now.clone().add(1, "day"), this.config.lat, this.config.lon);
+				const tomorrowSunTimes = SunCalc.getTimes(
+					now.clone().add(1, "day"),
+					this.config.lat,
+					this.config.lon,
+				);
 				nextEvent = tomorrowSunTimes.sunrise;
 			}
 			const untilNextEvent = moment.duration(moment(nextEvent).diff(now));
 			const untilNextEventString = `${untilNextEvent.hours()}h ${untilNextEvent.minutes()}m`;
-			sunWrapper.innerHTML
-				= `<span class="${isVisible ? "bright" : ""}"><i class="fas fa-sun" aria-hidden="true"></i> ${untilNextEventString}</span>`
-				+ `<span><i class="fas fa-arrow-up" aria-hidden="true"></i> ${formatTime(this.config, sunTimes.sunrise)}</span>`
-				+ `<span><i class="fas fa-arrow-down" aria-hidden="true"></i> ${formatTime(this.config, sunTimes.sunset)}</span>`;
+			sunWrapper.innerHTML =
+				`<span class="${isVisible ? "bright" : ""}"><i class="fas fa-sun" aria-hidden="true"></i> ${untilNextEventString}</span>` +
+				`<span><i class="fas fa-arrow-up" aria-hidden="true"></i> ${formatTime(this.config, sunTimes.sunrise)}</span>` +
+				`<span><i class="fas fa-arrow-down" aria-hidden="true"></i> ${formatTime(this.config, sunTimes.sunset)}</span>`;
 			digitalWrapper.appendChild(sunWrapper);
 		}
 
@@ -199,19 +203,25 @@ class clock extends Module {
 			if (moment(moonTimes.set).isAfter(moonTimes.rise)) {
 				moonSet = moonTimes.set;
 			} else {
-				const nextMoonTimes = SunCalc.getMoonTimes(now.clone().add(1, "day"), this.config.lat, this.config.lon);
+				const nextMoonTimes = SunCalc.getMoonTimes(
+					now.clone().add(1, "day"),
+					this.config.lat,
+					this.config.lon,
+				);
 				moonSet = nextMoonTimes.set;
 			}
 			const isVisible = now.isBetween(moonRise, moonSet) || moonTimes.alwaysUp === true;
 			const showFraction = ["both", "percent"].includes(this.config.showMoonTimes);
 			const showUnicode = ["both", "phase"].includes(this.config.showMoonTimes);
 			const illuminatedFractionString = `${Math.round(moonIllumination.fraction * 100)}%`;
-			const image = showUnicode ? [..."🌑🌒🌓🌔🌕🌖🌗🌘"][Math.floor(moonIllumination.phase * 8)] : "<i class=\"fas fa-moon\" aria-hidden=\"true\"></i>";
+			const image = showUnicode
+				? [..."🌑🌒🌓🌔🌕🌖🌗🌘"][Math.floor(moonIllumination.phase * 8)]
+				: '<i class="fas fa-moon" aria-hidden="true"></i>';
 
-			moonWrapper.innerHTML
-				= `<span class="${isVisible ? "bright" : ""}">${image} ${showFraction ? illuminatedFractionString : ""}</span>`
-				+ `<span><i class="fas fa-arrow-up" aria-hidden="true"></i> ${moonRise ? formatTime(this.config, moonRise) : "..."}</span>`
-				+ `<span><i class="fas fa-arrow-down" aria-hidden="true"></i> ${moonSet ? formatTime(this.config, moonSet) : "..."}</span>`;
+			moonWrapper.innerHTML =
+				`<span class="${isVisible ? "bright" : ""}">${image} ${showFraction ? illuminatedFractionString : ""}</span>` +
+				`<span><i class="fas fa-arrow-up" aria-hidden="true"></i> ${moonRise ? formatTime(this.config, moonRise) : "..."}</span>` +
+				`<span><i class="fas fa-arrow-down" aria-hidden="true"></i> ${moonSet ? formatTime(this.config, moonSet) : "..."}</span>`;
 			digitalWrapper.appendChild(moonWrapper);
 		}
 
@@ -238,7 +248,11 @@ class clock extends Module {
 			analogWrapper.style.width = this.config.analogSize;
 			analogWrapper.style.height = this.config.analogSize;
 
-			if (this.config.analogFace !== "" && this.config.analogFace !== "simple" && this.config.analogFace !== "none") {
+			if (
+				this.config.analogFace !== "" &&
+				this.config.analogFace !== "simple" &&
+				this.config.analogFace !== "none"
+			) {
 				analogWrapper.style.background = `url(${this.data.path}faces/${this.config.analogFace}.svg)`;
 				analogWrapper.style.backgroundSize = "100%";
 

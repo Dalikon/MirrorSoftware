@@ -12,8 +12,7 @@
  * @param {object} window The window object
  */
 (function (window) {
-
-	function extend (a, b) {
+	function extend(a, b) {
 		for (let key in b) {
 			if (b.hasOwnProperty(key)) {
 				a[key] = b[key];
@@ -22,7 +21,7 @@
 		return a;
 	}
 
-	function NotificationFx (options) {
+	function NotificationFx(options) {
 		this.options = extend({}, this.options);
 		extend(this.options, options);
 		this._init();
@@ -36,14 +35,18 @@
 		type: "notice",
 		ttl: 6000,
 		al_no: "ns-box",
-		onClose () { return false; },
-		onOpen () { return false; }
+		onClose() {
+			return false;
+		},
+		onOpen() {
+			return false;
+		},
 	};
 
 	NotificationFx.prototype._init = function () {
 		this.ntf = document.createElement("div");
 		this.ntf.className = `${this.options.al_no} ns-${this.options.layout} ns-effect-${this.options.effect} ns-type-${this.options.type}`;
-		let strinner = "<div class=\"ns-box-inner\">";
+		let strinner = '<div class="ns-box-inner">';
 		strinner += this.options.message;
 		strinner += "</div>";
 		this.ntf.innerHTML = strinner;
@@ -95,4 +98,4 @@
 	};
 
 	window.NotificationFx = NotificationFx;
-}(window));
+})(window);
