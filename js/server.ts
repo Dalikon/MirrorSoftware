@@ -435,6 +435,7 @@ class Server {
 			this.pushTrackersToRoot();
 
 			let missedHeartbeats = 0;
+      let heartbeatTimer = undefined;
 
 			const checkHeartbeat = () => {
 				if (client.status === "online") {
@@ -444,11 +445,11 @@ class Server {
 						socket.disconnect();
 						return;
 					}
-					setTimeout(checkHeartbeat, 10000);
+					heartbeatTimer = setTimeout(checkHeartbeat, 10000);
 				}
 			};
 
-			const heartbeatTimer = setTimeout(checkHeartbeat, 10000);
+			heartbeatTimer = setTimeout(checkHeartbeat, 10000);
 
 			socket.on("heartbeat", () => {
 				client.lastOnline = new Date();
@@ -515,7 +516,7 @@ class Server {
 
 				const editClient = this.trackedClients.find((c) => c.name === payload.client);
 				if (editClient) editClient.user = user;
-				this.clientMap.get(payload.client)?.emit("CHANGE_USER_Y", payload);
+				this.clientMap.get(payload.client)?.emit("CHANGE_USER_Y", { client: payload.client, user });//.emit("CHANGE_USER_Y", payload);
 			});
 
 			socket.on("disconnect", () => {

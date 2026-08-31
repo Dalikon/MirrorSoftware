@@ -58,6 +58,7 @@ export class AuthService {
 	}
 
 	private saveSessions(): void {
+    fs.mkdirSync(path.dirname(this.sessionsPath), { recursive: true });
 		fs.writeFileSync(
 			this.sessionsPath,
 			JSON.stringify(Array.from(this.sessions.values()), null, 2),

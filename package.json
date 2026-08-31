@@ -4,7 +4,7 @@
 	"description": "A MagicMirror derivative done as an personal project with new features",
 	"main": "dist/js/index.js",
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1",
+		"test": "jest",
 		"prebuild": "find configs -name 'index.html' -delete",
 		"build:server": "tsc -p tsconfig.json",
 		"build:client": "esbuild js/clientMain.ts --bundle --outfile=dist/client/client.bundle.js --platform=browser --target=es2020",
@@ -30,10 +30,15 @@
 	},
 	"devDependencies": {
 		"@types/express": "^5.0.6",
+		"@types/jest": "^30.0.0",
 		"@types/lodash": "^4.17.24",
 		"@types/node": "^25.9.1",
+		"@types/supertest": "^7.2.1",
 		"esbuild": "^0.28.0",
+		"jest": "^30.5.0",
 		"prettier": "^3.9.6",
+		"supertest": "^7.2.2",
+		"ts-jest": "^29.4.12",
 		"typescript": "^6.0.3"
 	}
 }
