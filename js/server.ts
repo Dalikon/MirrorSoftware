@@ -17,6 +17,7 @@ import type {
 } from "../types/socket.js";
 
 class Server {
+  rootDir: string;
 	app: express.Application;
 	port: number | string;
 	serverSockets: Set<net.Socket>;
@@ -27,7 +28,8 @@ class Server {
 	io!: SocketIOServer;
 	auth!: AuthService;
 
-	constructor(config: ServerConfig) {
+	constructor(rootDir: string, config: ServerConfig) {
+    this.rootDir = rootDir;
 		this.app = express();
 		this.port = config.port || 8080;
 		this.serverSockets = new Set();
@@ -42,13 +44,13 @@ class Server {
 	 **/
 	newHtml(confName: string): void {
 		const mirrorName = confName + ".js";
-		fs.readFile(path.resolve("./index.html"), "utf8", (err, data) => {
+		fs.readFile(path.join(this.rootDir, "index.html"), "utf8", (err, data) => {
 			if (err) {
 				console.log(err.message);
 				return;
 			}
 
-			const clientCssLink = fs.existsSync(path.resolve(`./css/${confName}.css`))
+			const clientCssLink = fs.existsSync(path.join(this.rootDir, "css", `${confName}.css`))
 				? `<link rel="stylesheet" type="text/css" href="/css/${confName}.css" />`
 				: "";
 
@@ -56,9 +58,14 @@ class Server {
 				.replace("#CLIENTCONFIG#", mirrorName)
 				.replace("#CLIENTSTYLE#", clientCssLink);
 
-			fs.writeFile("./configs/" + confName + "/index.html", newFile, "utf8", (writeErr) => {
-				if (writeErr) console.log(writeErr.message);
-			});
+			fs.writeFile(
+				path.join(this.rootDir, "configs", confName, "index.html"),
+				newFile,
+				"utf8",
+				(writeErr) => {
+					if (writeErr) console.log(writeErr.message);
+				},
+			);
 		});
 	}
 
@@ -66,8 +73,6 @@ class Server {
 	 * Endpoints accessible by authenticated regular user
 	 **/
 	userEndpoints(): void {
-		const rootDir = path.resolve(__dirname, "../..");
-
 		const requireAuth = (
 			req: express.Request,
 			res: express.Response,
@@ -89,11 +94,11 @@ class Server {
 
 		const readUserConfig = (username: string, clientName?: string): object => {
 			if (clientName) {
-				const clientPath = path.join(rootDir, "configs", clientName, "users", `${username}.json`);
+				const clientPath = path.join(this.rootDir, "configs", clientName, "users", `${username}.json`);
 				if (fs.existsSync(clientPath))
 					return JSON.parse(fs.readFileSync(clientPath, "utf8")) as object;
 			}
-			const globalPath = path.join(rootDir, "configs/users", `${username}.json`);
+			const globalPath = path.join(this.rootDir, "configs/users", `${username}.json`);
 			if (fs.existsSync(globalPath))
 				return JSON.parse(fs.readFileSync(globalPath, "utf8")) as object;
 			return { name: username, modules: [] };
@@ -101,8 +106,8 @@ class Server {
 
 		const writeUserConfig = (username: string, modules: unknown[], clientName?: string): void => {
 			const filePath = clientName
-				? path.join(rootDir, "configs", clientName, "users", `${username}.json`)
-				: path.join(rootDir, "configs/users", `${username}.json`);
+				? path.join(this.rootDir, "configs", clientName, "users", `${username}.json`)
+				: path.join(this.rootDir, "configs/users", `${username}.json`);
 			fs.mkdirSync(path.dirname(filePath), { recursive: true });
 			fs.writeFileSync(filePath, JSON.stringify({ name: username, modules }, null, 2));
 		};
@@ -138,7 +143,7 @@ class Server {
 			const assigned = this.config.clientConfigs.filter((name) => {
 				try {
 					const cfg = JSON.parse(
-						fs.readFileSync(path.join(rootDir, "configs", name, `${name}.json`), "utf8"),
+						fs.readFileSync(path.join(this.rootDir, "configs", name, `${name}.json`), "utf8"),
 					) as { users?: string[] };
 					return (cfg.users ?? []).includes(username);
 				} catch {
@@ -164,7 +169,7 @@ class Server {
 
 			let thirdParty: string[] = [];
 			try {
-				const modulesDir = path.join(rootDir, "modules");
+				const modulesDir = path.join(this.rootDir, "modules");
 				thirdParty = fs.readdirSync(modulesDir).filter((name) => {
 					if (name === "default") return false;
 					return fs.statSync(path.join(modulesDir, name)).isDirectory();
@@ -213,8 +218,6 @@ class Server {
 	}
 
 	adminEndpoints(): void {
-		const rootDir = path.resolve(__dirname, "../..");
-
 		const requireAdmin = (
 			req: express.Request,
 			res: express.Response,
@@ -252,7 +255,7 @@ class Server {
 			try {
 				this.auth.createAccount(username, displayName, role as "admin" | "user", password);
 				// Auto-create global mirror config if it doesn't exist
-				const configPath = path.join(rootDir, "configs/users", `${username}.json`);
+				const configPath = path.join(this.rootDir, "configs/users", `${username}.json`);
 				if (!fs.existsSync(configPath)) {
 					fs.mkdirSync(path.dirname(configPath), { recursive: true });
 					fs.writeFileSync(configPath, JSON.stringify({ name: username, modules: [] }, null, 2));
@@ -283,7 +286,7 @@ class Server {
 				this.auth.deleteAccount(username);
 				// Remove from all client users lists
 				for (const clientName of this.config.clientConfigs) {
-					const cfgPath = path.join(rootDir, "configs", clientName, `${clientName}.json`);
+					const cfgPath = path.join(this.rootDir, "configs", clientName, `${clientName}.json`);
 					try {
 						const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")) as { users?: string[] };
 						if (cfg.users?.includes(username)) {
@@ -303,7 +306,7 @@ class Server {
 		// return clients and users who has a specific config on that client
 		this.app.get("/admin/clients", requireAdmin, (_req, res) => {
 			const clients = this.config.clientConfigs.map((name) => {
-				const configPath = path.join(rootDir, "configs", name, `${name}.json`);
+				const configPath = path.join(this.rootDir, "configs", name, `${name}.json`);
 				let users: string[] = [];
 				try {
 					users =
@@ -328,7 +331,7 @@ class Server {
 				res.status(400).json({ error: "users must be an array" });
 				return;
 			}
-			const configPath = path.join(rootDir, "configs", clientName, `${clientName}.json`);
+			const configPath = path.join(this.rootDir, "configs", clientName, `${clientName}.json`);
 			try {
 				const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
 				config.users = users;
@@ -352,7 +355,7 @@ class Server {
 
 			req.on("end", () => {
 				let filePath = path.join(
-					path.resolve(__dirname, "../.."),
+          this.rootDir,
 					"/configs",
 					"/" + clientName,
 					"/users",
@@ -360,7 +363,7 @@ class Server {
 				);
 				if (!fs.existsSync(filePath)) {
 					filePath = path.join(
-						path.resolve(__dirname, "../.."),
+            this.rootDir,
 						"/configs",
 						"/users",
 						"/" + fileName,
@@ -379,7 +382,7 @@ class Server {
 
 	loadTrackerFile(): void {
 		try {
-			const data = fs.readFileSync("./workData/cTracker.json", "utf8");
+			const data = fs.readFileSync(path.join(this.rootDir, "workData/cTracker.json"), "utf8");
 			const tracked: unknown[] = JSON.parse(data);
 			this.trackedClients = tracked.map((obj) => {
 				const tracker = ClientTracker.fromObject(
@@ -428,14 +431,14 @@ class Server {
 			}
 
 			fs.writeFileSync(
-				"./workData/cTracker.json",
+				path.join(this.rootDir, "workData/cTracker.json"),
 				JSON.stringify(this.trackedClients, null, 2),
 				"utf8",
 			);
 			this.pushTrackersToRoot();
 
 			let missedHeartbeats = 0;
-      let heartbeatTimer = undefined;
+      let heartbeatTimer: ReturnType<typeof setTimeout>;
 
 			const checkHeartbeat = () => {
 				if (client.status === "online") {
@@ -458,7 +461,7 @@ class Server {
 				beats += 1;
 				if (beats === 3) {
 					fs.writeFileSync(
-						"./workData/cTracker.json",
+				    path.join(this.rootDir, "workData/cTracker.json"),
 						JSON.stringify(this.trackedClients, null, 2),
 						"utf8",
 					);
@@ -531,7 +534,7 @@ class Server {
 				}
 				client.user = "default";
 				fs.writeFileSync(
-					"./workData/cTracker.json",
+					path.join(this.rootDir, "workData/cTracker.json"),
 					JSON.stringify(this.trackedClients, null, 2),
 					"utf8",
 				);
@@ -542,11 +545,10 @@ class Server {
 	}
 
 	authEndpoints(): void {
-		const rootDir = path.resolve(__dirname, "../..");
 		const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
 
 		this.app.get("/login", (_req, res) => {
-			res.sendFile(path.resolve(rootDir, "public/login.html"));
+			res.sendFile(path.resolve(this.rootDir, "public/login.html"));
 		});
 
 		this.app.post("/auth/login", (req, res) => {
@@ -612,7 +614,7 @@ class Server {
 
 			this.app.use(express.json());
 
-			this.auth = new AuthService(path.resolve(__dirname, "../.."));
+			this.auth = new AuthService(this.rootDir);
 
 			this.authEndpoints();
 			this.userEndpoints();
@@ -639,28 +641,25 @@ class Server {
 			this.server.listen(Number(this.port), this.config.address || "0.0.0.0");
 
 			for (const conf of this.config.clientConfigs) {
-				const confBase = path.resolve("./configs") + "/" + conf;
-				if (fs.existsSync(confBase + "/" + conf + ".js")) {
-					if (!fs.existsSync(confBase + "/index.html")) this.newHtml(conf);
-					this.app.use("/" + conf, express.static(path.resolve("./configs/" + conf)));
+				const confBase = path.join(this.rootDir, "configs", conf);
+				if (fs.existsSync(path.join(confBase, `${conf}.js`))) {
+					if (!fs.existsSync(path.join(confBase, "index.html"))) this.newHtml(conf);
+					this.app.use("/" + conf, express.static(confBase));
 				}
 			}
 
-			const rootBase = path.resolve("./configs") + "/" + this.config.rootConf;
-			if (fs.existsSync(rootBase + "/" + this.config.rootConf + ".js")) {
-				if (!fs.existsSync(rootBase + "/index.html")) this.newHtml(this.config.rootConf);
-				this.app.use("/", express.static(path.resolve("./configs/" + this.config.rootConf)));
+			const rootBase = path.join(this.rootDir, "configs", this.config.rootConf);
+			if (fs.existsSync(path.join(rootBase, `${this.config.rootConf}.js`))) {
+				if (!fs.existsSync(path.join(rootBase, "index.html"))) this.newHtml(this.config.rootConf);
+				this.app.use("/", express.static(rootBase));
 				// Also mount at /root/ so fetchConfig() can resolve root.json consistently with other clients
-				this.app.use(
-					"/" + this.config.rootConf,
-					express.static(path.resolve("./configs/" + this.config.rootConf)),
-				);
+				this.app.use("/" + this.config.rootConf, express.static(rootBase));
 			}
 
-			this.app.use("/configs", express.static("./configs"));
-			this.app.use("/modules", express.static("./modules"));
-			this.app.use("/css", express.static("./css"));
-			this.app.use("/js", express.static("./dist/client"));
+			this.app.use("/configs", express.static(path.join(this.rootDir, "configs")));
+			this.app.use("/modules", express.static(path.join(this.rootDir, "modules")));
+			this.app.use("/css", express.static(path.join(this.rootDir, "css")));
+			this.app.use("/js", express.static(path.join(this.rootDir, "dist/client")));
 
 			this.userServiceEndpoints();
 

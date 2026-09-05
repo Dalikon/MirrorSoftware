@@ -3,7 +3,7 @@ module.exports = {
 	preset: "ts-jest",
 	testEnvironment: "node",
 	rootDir: ".",
-	roots: ["<rootDir>/js"],
+	roots: ["<rootDir>/js", "<rootDir>/modules"],
 	setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
 	testMatch: ["**/__tests__/**/*.test.ts"],
 	// TS "NodeNext" resolution requires source imports to end in ".js"
@@ -14,7 +14,7 @@ module.exports = {
 		"^(\\.{1,2}/.*)\\.js$": "$1",
 	},
 	transform: {
-		"^.+\\.ts$": ["ts-jest", { tsconfig: "tsconfig.test.json", isolatedModules: true }],
+		"^.+\\.ts$": ["ts-jest", { tsconfig: "tsconfig.test.json" }],
 	},
 	clearMocks: true,
 };

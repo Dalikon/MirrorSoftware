@@ -1,8 +1,19 @@
 {
-	"extends": "./tsconfig.json",
-	"compilerOptions": {
-		"types": ["jest", "node"]
-	},
-	"include": ["js/**/*.ts", "types/**/*"],
-	"exclude": ["node_modules", "dist"]
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "jest",
+      "node"
+    ],
+    "isolatedModules": true
+  },
+  "include": [
+    "js/**/*.ts",
+    "modules/**/*.ts",
+    "types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

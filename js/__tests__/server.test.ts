@@ -14,14 +14,33 @@ import ClientTracker from "../clientTracker.js";
 import type { ServerConfig } from "../../types/config.js";
 
 function buildConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
-	return {
+	const base: ServerConfig = {
 		port: 0,
-		clientConfigs: ["bathroom"],
+		address: "127.0.0.1",
+		ipWhitelist: [],
+		ipBlackList: [],
+		https: false,
+		httpHeaders: {
+			contentSecurityPolicy: false,
+			crossOriginOpenerPolicy: false,
+			crossOriginEmbedderPolicy: false,
+			crossOriginResourcePolicy: false,
+			originAgentCluster: false,
+		},
+		checkServerInterval: 0,
+		userSwitchMode: "SAVE",
+		logLevel: [],
+		reloadAfterServerRestart: false,
+		language: "en",
+		timeFormat: 24,
+		units: "metric",
+		zoom: 1,
+		customCss: "",
 		rootConf: "root",
+		clientConfigs: ["bathroom"],
 		providedModules: [],
-		httpHeaders: {},
-		...overrides,
 	};
+	return { ...base, ...overrides };
 }
 
 function extractCookie(setCookieHeader: string | string[] | undefined): string {
@@ -35,29 +54,21 @@ function extractCookie(setCookieHeader: string | string[] | undefined): string {
 	return raw.split(";")[0]!; // "hms-session=<token>"
 }
 
-// server.ts writes "./workData/cTracker.json" using a bare relative path
-// (not derived from an injectable rootDir like AuthService uses), so socket
-// tests chdir into a scratch directory with a workData/ folder already
-// present to keep those writes sandboxed instead of hitting the real project.
 describe("Server", () => {
 	let rootDir: string;
-	let originalCwd: string;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-server-"));
 		fs.mkdirSync(path.join(rootDir, "workData"), { recursive: true });
-		originalCwd = process.cwd();
-		process.chdir(rootDir);
 	});
 
 	afterEach(() => {
-		process.chdir(originalCwd);
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	});
 
 	describe("authEndpoints", () => {
 		function createHttpOnlyServer(): Server {
-			const srv = new Server(buildConfig());
+			const srv = new Server(rootDir, buildConfig());
 			srv.app = express();
 			srv.app.use(express.json());
 			srv.auth = new AuthService(rootDir);
@@ -129,7 +140,7 @@ describe("Server", () => {
 		async function createTrackerHarness(
 			trackedClients: ClientTracker[],
 		): Promise<{ srv: Server; port: number }> {
-			const srv = new Server(buildConfig());
+			const srv = new Server(rootDir, buildConfig());
 			srv.app = express();
 			srv.auth = new AuthService(rootDir);
 			srv.trackedClients = trackedClients;
@@ -277,6 +288,74 @@ describe("Server", () => {
 			expect(tracker.lastOnline!.getTime()).toBeGreaterThanOrEqual(before);
 
 			await teardown(srv, client);
+		});
+	});
+
+	describe("newHtml", () => {
+		const TEMPLATE = '<script src="#CLIENTCONFIG#"></script>#CLIENTSTYLE#';
+
+		beforeEach(() => {
+			fs.writeFileSync(path.join(rootDir, "index.html"), TEMPLATE);
+		});
+
+		function waitForFile(filePath: string, timeoutMs = 1000): Promise<void> {
+			return new Promise((resolve, reject) => {
+				const start = Date.now();
+				const check = (): void => {
+					if (fs.existsSync(filePath)) resolve();
+					else if (Date.now() - start > timeoutMs)
+						reject(new Error(`Timeout waiting for ${filePath}`));
+					else setTimeout(check, 10);
+				};
+				check();
+			});
+		}
+
+		it("replaces #CLIENTCONFIG# with confName.js", async () => {
+			fs.mkdirSync(path.join(rootDir, "configs/bathroom"), { recursive: true });
+
+			new Server(rootDir, buildConfig()).newHtml("bathroom");
+
+			const outFile = path.join(rootDir, "configs/bathroom/index.html");
+			await waitForFile(outFile);
+
+			const content = fs.readFileSync(outFile, "utf8");
+			expect(content).toContain("bathroom.js");
+			expect(content).not.toContain("#CLIENTCONFIG#");
+		});
+
+		it("injects a CSS <link> when css/confName.css exists", async () => {
+			fs.mkdirSync(path.join(rootDir, "configs/bathroom"), { recursive: true });
+			fs.mkdirSync(path.join(rootDir, "css"), { recursive: true });
+			fs.writeFileSync(path.join(rootDir, "css/bathroom.css"), "");
+
+			new Server(rootDir, buildConfig()).newHtml("bathroom");
+
+			const outFile = path.join(rootDir, "configs/bathroom/index.html");
+			await waitForFile(outFile);
+
+			const content = fs.readFileSync(outFile, "utf8");
+			expect(content).toContain('href="/css/bathroom.css"');
+		});
+
+		it("uses an empty string for #CLIENTSTYLE# when no CSS file exists", async () => {
+			fs.mkdirSync(path.join(rootDir, "configs/bathroom"), { recursive: true });
+
+			new Server(rootDir, buildConfig()).newHtml("bathroom");
+
+			const outFile = path.join(rootDir, "configs/bathroom/index.html");
+			await waitForFile(outFile);
+
+			const content = fs.readFileSync(outFile, "utf8");
+			expect(content).not.toContain("#CLIENTSTYLE#");
+			expect(content).not.toContain("<link");
+		});
+
+		it("does not throw when index.html is missing — logs the error instead", async () => {
+			fs.rmSync(path.join(rootDir, "index.html"));
+
+			expect(() => new Server(rootDir, buildConfig()).newHtml("bathroom")).not.toThrow();
+			await new Promise((resolve) => setTimeout(resolve, 100));
 		});
 	});
 });

@@ -9,7 +9,8 @@
 		"outDir": "dist",
 		"rootDir": ".",
 		"declaration": true,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+    "types": ["jest"]
 	},
 	"include": [
 		"js/index.ts",
@@ -17,6 +18,9 @@
 		"js/helper.ts",
 		"js/clientTracker.ts",
 		"js/electron.ts",
+		"js/__tests__",
+		"js/testUtils",
+		"modules/**/*.ts",
 		"types/**/*"
 	],
 	"exclude": ["node_modules", "dist"]

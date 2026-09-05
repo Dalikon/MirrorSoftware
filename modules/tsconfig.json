@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "strict": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "types": ["jest", "node"],
+        "isolatedModules": true,
+        "noEmit": true,
+        "skipLibCheck": true
+    },
+    "include": [
+        "**/*.ts",
+        "../js/testUtils/**/*.ts",
+        "../js/module.ts",
+        "../types/**/*"
+    ]
+}
