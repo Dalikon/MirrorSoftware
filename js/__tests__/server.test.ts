@@ -10,6 +10,8 @@ import { io as ioClient, Socket as ClientSocket } from "socket.io-client";
 
 import Server from "../server.js";
 import { AuthService, COOKIE_NAME } from "../authService.js";
+import { initDb } from "../db/index.js";
+import type { Db } from "../db/index.js";
 import ClientTracker from "../clientTracker.js";
 import type { ServerConfig } from "../../types/config.js";
 
@@ -56,10 +58,12 @@ function extractCookie(setCookieHeader: string | string[] | undefined): string {
 
 describe("Server", () => {
 	let rootDir: string;
+	let db: Db;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-server-"));
 		fs.mkdirSync(path.join(rootDir, "workData"), { recursive: true });
+		db = initDb(":memory:");
 	});
 
 	afterEach(() => {
@@ -71,7 +75,7 @@ describe("Server", () => {
 			const srv = new Server(rootDir, buildConfig());
 			srv.app = express();
 			srv.app.use(express.json());
-			srv.auth = new AuthService(rootDir);
+			srv.auth = new AuthService(db);
 			srv.authEndpoints();
 			return srv;
 		}
@@ -142,7 +146,7 @@ describe("Server", () => {
 		): Promise<{ srv: Server; port: number }> {
 			const srv = new Server(rootDir, buildConfig());
 			srv.app = express();
-			srv.auth = new AuthService(rootDir);
+			srv.auth = new AuthService(db);
 			srv.trackedClients = trackedClients;
 			srv.clientMap = new Map();
 			srv.server = http.createServer(srv.app);

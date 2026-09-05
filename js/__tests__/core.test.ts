@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
 import Core from "../core.js";
 import type { ClientModuleMap } from "../core.js";
+import { initDb } from "../db/index.js";
+import type { Db } from "../db/index.js";
+import { accounts as accountsTable, clients as clientsTable, clientUsers as clientUsersTable, userConfigs as userConfigsTable } from "../db/schema.js";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -184,9 +186,11 @@ describe("Core.loadAndValidateManifest", () => {
 describe("Core.getUsersPerClient", () => {
 	let rootDir: string;
 	let core: Core;
+	let db: Db;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-core-"));
+		db = initDb(":memory:");
 		core = makeCore(rootDir);
 	});
 
@@ -198,28 +202,37 @@ describe("Core.getUsersPerClient", () => {
 		expect(core.getUsersPerClient("bathroom", [])).toEqual([]);
 	});
 
-	it("returns path + parsed data for each user config file", () => {
-		const usersDir = path.join(rootDir, "configs/bathroom/users");
-		fs.mkdirSync(usersDir, { recursive: true });
-
-		const dalaData = { name: "dala", modules: [{ module: "clock" }] };
-		const momiData = { name: "momi", modules: [] };
-		fs.writeFileSync(path.join(usersDir, "dala.json"), JSON.stringify(dalaData));
-		fs.writeFileSync(path.join(usersDir, "momi.json"), JSON.stringify(momiData));
+	it("returns parsed modules for each user from DB", () => {
+		db.insert(accountsTable).values([
+			{ username: "dala", displayName: "Dala", role: "user", passwordHash: "x", salt: "y" },
+			{ username: "momi", displayName: "Momi", role: "user", passwordHash: "x", salt: "y" },
+		]).run();
+		const dalaModules = [{ module: "clock" }];
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "bathroom", modules: JSON.stringify(dalaModules) }).run();
+		db.insert(userConfigsTable).values({ username: "momi", clientName: "bathroom", modules: "[]" }).run();
 
 		const result = core.getUsersPerClient("bathroom", ["dala", "momi"]);
 
 		expect(result).toHaveLength(2);
-		expect(result[0]!.data).toEqual(dalaData);
-		expect(result[1]!.data).toEqual(momiData);
-		expect(result[0]!.path).toContain("dala.json");
+		expect(result[0]!.data).toEqual({ name: "dala", modules: dalaModules });
+		expect(result[1]!.data).toEqual({ name: "momi", modules: [] });
 	});
 
-	it("throws when a user config file is missing", () => {
-		const usersDir = path.join(rootDir, "configs/bathroom/users");
-		fs.mkdirSync(usersDir, { recursive: true });
+	it("falls back to global config when no client-specific row exists", () => {
+		db.insert(accountsTable).values({ username: "dala", displayName: "Dala", role: "user", passwordHash: "x", salt: "y" }).run();
+		const globalModules = [{ module: "alert" }];
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "", modules: JSON.stringify(globalModules) }).run();
 
-		expect(() => core.getUsersPerClient("bathroom", ["ghost"])).toThrow();
+		const result = core.getUsersPerClient("bathroom", ["dala"]);
+
+		expect(result[0]!.data.modules).toEqual(globalModules);
+	});
+
+	it("returns empty modules when no config row exists for the user", () => {
+		const result = core.getUsersPerClient("bathroom", ["ghost"]);
+
+		expect(result).toHaveLength(1);
+		expect(result[0]!.data.modules).toEqual([]);
 	});
 });
 
@@ -298,34 +311,28 @@ describe("Core.differentModules", () => {
 describe("Core.createModuleArray", () => {
 	let rootDir: string;
 	let core: Core;
+	let db: Db;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-core-"));
+		db = initDb(":memory:");
 	});
 
 	afterEach(() => {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	});
 
-	function writeClientConfig(clientName: string, obj: unknown): void {
-		const dir = path.join(rootDir, "configs", clientName);
-		fs.mkdirSync(dir, { recursive: true });
-		fs.writeFileSync(path.join(dir, `${clientName}.json`), JSON.stringify(obj));
-	}
-
 	it("returns an empty map when clientConfigs is empty", () => {
 		core = makeCore(rootDir, { clientConfigs: [] });
 		expect(core.createModuleArray()).toEqual({});
 	});
 
-	it("builds the map with defaultModules for a valid client config", () => {
-		writeClientConfig("bathroom", {
+	it("builds the map with defaultModules from the clients DB row", () => {
+		db.insert(clientsTable).values({
 			name: "bathroom",
 			type: "mirror",
-			userSwitchMode: "DELETE",
-			users: [],
-			defaultModules: [{ module: "clock" }],
-		});
+			defaultModules: JSON.stringify([{ module: "clock" }]),
+		}).run();
 		core = makeCore(rootDir, { clientConfigs: ["bathroom"] });
 
 		const result = core.createModuleArray();
@@ -335,34 +342,24 @@ describe("Core.createModuleArray", () => {
 		expect(result["bathroom"]!.usersSpecific).toEqual([]);
 	});
 
-	it("populates usersSpecific when user config files exist", () => {
-		const userData = { name: "dala", modules: [{ module: "helloworld" }] };
-		const usersDir = path.join(rootDir, "configs/bathroom/users");
-		fs.mkdirSync(usersDir, { recursive: true });
-		fs.writeFileSync(path.join(usersDir, "dala.json"), JSON.stringify(userData));
+	it("populates usersSpecific from user_configs and client_users", () => {
+		db.insert(accountsTable).values({ username: "dala", displayName: "Dala", role: "user", passwordHash: "x", salt: "y" }).run();
+		db.insert(clientsTable).values({ name: "bathroom", type: "mirror", defaultModules: "[]" }).run();
+		db.insert(clientUsersTable).values({ clientName: "bathroom", username: "dala" }).run();
+		const userModules = [{ module: "helloworld" }];
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "bathroom", modules: JSON.stringify(userModules) }).run();
 
-		writeClientConfig("bathroom", {
-			name: "bathroom",
-			type: "mirror",
-			userSwitchMode: "DELETE",
-			users: ["dala"],
-			defaultModules: [],
-		});
 		core = makeCore(rootDir, { clientConfigs: ["bathroom"] });
 
 		const result = core.createModuleArray();
-		expect(result["bathroom"]!.usersSpecific[0]!.data).toEqual(userData);
+		expect(result["bathroom"]!.usersSpecific[0]!.data).toEqual({ name: "dala", modules: userModules });
 	});
 
-	it("skips a client whose config file cannot be parsed, without throwing", () => {
-		const dir = path.join(rootDir, "configs/badclient");
-		fs.mkdirSync(dir, { recursive: true });
-		fs.writeFileSync(path.join(dir, "badclient.json"), "{ bad json");
-
-		core = makeCore(rootDir, { clientConfigs: ["badclient"] });
+	it("skips a client with no DB row, without throwing", () => {
+		core = makeCore(rootDir, { clientConfigs: ["missing"] });
 		const result = core.createModuleArray();
 
-		expect(result["badclient"]).toBeUndefined();
+		expect(result["missing"]).toBeUndefined();
 	});
 });
 
@@ -380,38 +377,6 @@ describe("Core.checkMirrorConfigs", () => {
 
 	afterEach(() => {
 		fs.rmSync(rootDir, { recursive: true, force: true });
-	});
-
-	it("creates cTracker.json with mirror entries for each client plus a root dashboard entry", () => {
-		const bathDir = path.join(rootDir, "configs/bathroom");
-		fs.mkdirSync(bathDir, { recursive: true });
-		fs.writeFileSync(path.join(bathDir, "bathroom.js"), ""); // .js already exists — no copy needed
-
-		const core = makeCore(rootDir, { clientConfigs: ["bathroom"], rootConf: "root" });
-		core.checkMirrorConfigs();
-
-		const tracker = JSON.parse(
-			fs.readFileSync(path.join(rootDir, "workData/cTracker.json"), "utf8"),
-		) as Array<{ name: string; type: string }>;
-
-		expect(tracker.find((t) => t.name === "bathroom")?.type).toBe("mirror");
-		expect(tracker.find((t) => t.name === "root")?.type).toBe("dashboard");
-	});
-
-	it("does not overwrite an existing cTracker.json", () => {
-		const existing = [{ name: "sentinel", type: "mirror" }];
-		fs.writeFileSync(
-			path.join(rootDir, "workData/cTracker.json"),
-			JSON.stringify(existing),
-		);
-
-		const core = makeCore(rootDir, { clientConfigs: [], rootConf: "nonexistent" });
-		core.checkMirrorConfigs();
-
-		const tracker = JSON.parse(
-			fs.readFileSync(path.join(rootDir, "workData/cTracker.json"), "utf8"),
-		) as unknown[];
-		expect(tracker).toEqual(existing);
 	});
 
 	it("removes a client from clientConfigs when its folder does not exist", () => {

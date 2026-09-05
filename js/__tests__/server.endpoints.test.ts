@@ -3,9 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import express from "express";
 import request from "supertest";
+import { eq, and } from "drizzle-orm";
 
 import Server from "../server.js";
 import { AuthService, COOKIE_NAME } from "../authService.js";
+import { initDb } from "../db/index.js";
+import type { Db } from "../db/index.js";
+import { clients as clientsTable, clientUsers as clientUsersTable, userConfigs as userConfigsTable } from "../db/schema.js";
 import type { ServerConfig } from "../../types/config.js";
 
 function buildConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
@@ -38,11 +42,11 @@ function buildConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
 	return { ...base, ...overrides };
 }
 
-function makeServer(rootDir: string, config: ServerConfig = buildConfig()): Server {
+function makeServer(rootDir: string, db: Db, config: ServerConfig = buildConfig()): Server {
 	const srv = new Server(rootDir, config);
 	srv.app = express();
 	srv.app.use(express.json());
-	srv.auth = new AuthService(rootDir);
+	srv.auth = new AuthService(db);
 	return srv;
 }
 
@@ -60,74 +64,66 @@ describe("Server.loadTrackerFile", () => {
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-tracker-"));
+		initDb(":memory:");
 	});
 
 	afterEach(() => {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	});
 
-	it("loads trackers and resets status to offline and connections to []", () => {
-		const raw = [
-			{
-				name: "bathroom",
-				type: "mirror",
-				lastOnline: "2026-01-01T00:00:00.000Z",
-				connectedAt: "2026-01-01T00:01:00.000Z",
-				status: "online",
-				user: "dala",
-				connections: [{ ip: "10.0.0.1", connectedAt: new Date().toISOString() }],
-			},
-		];
-		fs.mkdirSync(path.join(rootDir, "workData"), { recursive: true });
-		fs.writeFileSync(path.join(rootDir, "workData/cTracker.json"), JSON.stringify(raw));
-
-		const srv = new Server(rootDir, buildConfig());
+	it("seeds configured clients into DB if absent and loads them as offline", () => {
+		const srv = new Server(rootDir, buildConfig()); // clientConfigs: ["bathroom"], rootConf: "root"
 		srv.loadTrackerFile();
 
-		expect(srv.trackedClients).toHaveLength(1);
-		expect(srv.trackedClients[0]!.name).toBe("bathroom");
-		expect(srv.trackedClients[0]!.status).toBe("offline");
-		expect(srv.trackedClients[0]!.connections).toEqual([]);
-		expect(srv.trackedClients[0]!.user).toBe("dala");
+		expect(srv.trackedClients).toHaveLength(2);
+		const names = srv.trackedClients.map((t) => t.name);
+		expect(names).toEqual(expect.arrayContaining(["bathroom", "root"]));
+		expect(srv.trackedClients.every((t) => t.status === "offline")).toBe(true);
+		expect(srv.trackedClients.every((t) => t.connections.length === 0)).toBe(true);
 	});
 
-	it("preserves lastOnline as a Date after loading", () => {
-		const raw = [
-			{
-				name: "bathroom",
-				type: "mirror",
-				lastOnline: "2026-06-01T12:00:00.000Z",
-				connectedAt: null,
-				status: "offline",
-				user: "default",
-				connections: [],
-			},
-		];
-		fs.mkdirSync(path.join(rootDir, "workData"), { recursive: true });
-		fs.writeFileSync(path.join(rootDir, "workData/cTracker.json"), JSON.stringify(raw));
+	it("does not duplicate a client already in DB", () => {
+		const db = initDb(":memory:");
+		db.insert(clientsTable).values({ name: "bathroom", type: "mirror" }).run();
 
 		const srv = new Server(rootDir, buildConfig());
 		srv.loadTrackerFile();
 
-		expect(srv.trackedClients[0]!.lastOnline).toBeInstanceOf(Date);
-		expect(srv.trackedClients[0]!.lastOnline?.toISOString()).toBe("2026-06-01T12:00:00.000Z");
+		const rows = db.select().from(clientsTable).where(eq(clientsTable.name, "bathroom")).all();
+		expect(rows).toHaveLength(1);
 	});
 
-	it("leaves trackedClients empty when the file does not exist", () => {
+	it("resets status to offline and connections to [] but preserves currentUser from DB", () => {
+		const db = initDb(":memory:");
+		db.insert(clientsTable).values({
+			name: "bathroom",
+			type: "mirror",
+			status: "online",
+			currentUser: "dala",
+			connections: JSON.stringify([{ ip: "10.0.0.1", connectedAt: new Date().toISOString() }]),
+			lastOnline: Date.now(),
+		}).run();
+
 		const srv = new Server(rootDir, buildConfig());
 		srv.loadTrackerFile();
 
-		expect(srv.trackedClients).toEqual([]);
+		const t = srv.trackedClients.find((c) => c.name === "bathroom");
+		expect(t?.status).toBe("offline");
+		expect(t?.connections).toEqual([]);
+		expect(t?.user).toBe("dala");
 	});
 
-	it("leaves trackedClients empty when the file contains malformed JSON", () => {
-		fs.mkdirSync(path.join(rootDir, "workData"), { recursive: true });
-		fs.writeFileSync(path.join(rootDir, "workData/cTracker.json"), "not valid json {{{");
+	it("preserves lastOnline from DB as a Date instance", () => {
+		const db = initDb(":memory:");
+		const ts = new Date("2026-06-01T12:00:00.000Z").getTime();
+		db.insert(clientsTable).values({ name: "bathroom", type: "mirror", lastOnline: ts }).run();
 
 		const srv = new Server(rootDir, buildConfig());
 		srv.loadTrackerFile();
 
-		expect(srv.trackedClients).toEqual([]);
+		const t = srv.trackedClients.find((c) => c.name === "bathroom");
+		expect(t?.lastOnline).toBeInstanceOf(Date);
+		expect(t?.lastOnline?.toISOString()).toBe("2026-06-01T12:00:00.000Z");
 	});
 });
 
@@ -137,12 +133,14 @@ describe("Server.loadTrackerFile", () => {
 
 describe("Server.userEndpoints", () => {
 	let rootDir: string;
+	let db: Db;
 	let srv: Server;
 	let adminCookie: string;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-user-ep-"));
-		srv = makeServer(rootDir);
+		db = initDb(":memory:");
+		srv = makeServer(rootDir, db);
 		srv.auth.createAccount("alice", "Alice", "user", "pass1");
 		srv.userEndpoints();
 
@@ -169,17 +167,15 @@ describe("Server.userEndpoints", () => {
 
 	describe("GET /user/config", () => {
 		it("returns the global user config when it exists", async () => {
-			const data = { name: "admin", modules: [{ module: "clock", position: "top_left" }] };
-			const p = path.join(rootDir, "configs/users/admin.json");
-			fs.mkdirSync(path.dirname(p), { recursive: true });
-			fs.writeFileSync(p, JSON.stringify(data));
+			const modules = [{ module: "clock", position: "top_left" }];
+			db.insert(userConfigsTable).values({ username: "admin", clientName: "", modules: JSON.stringify(modules) }).run();
 
 			const res = await request(srv.app).get("/user/config").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
-			expect(res.body).toEqual(data);
+			expect(res.body).toEqual({ name: "admin", modules });
 		});
 
-		it("returns an empty-modules fallback when no config file exists", async () => {
+		it("returns an empty-modules fallback when no config row exists", async () => {
 			const res = await request(srv.app).get("/user/config").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
 			expect(res.body).toEqual({ name: "admin", modules: [] });
@@ -188,28 +184,24 @@ describe("Server.userEndpoints", () => {
 
 	describe("GET /user/config/:client", () => {
 		it("returns the client-specific config when it exists", async () => {
-			const data = { name: "admin", modules: [{ module: "clock" }] };
-			const p = path.join(rootDir, "configs/bathroom/users/admin.json");
-			fs.mkdirSync(path.dirname(p), { recursive: true });
-			fs.writeFileSync(p, JSON.stringify(data));
+			const modules = [{ module: "clock" }];
+			db.insert(userConfigsTable).values({ username: "admin", clientName: "bathroom", modules: JSON.stringify(modules) }).run();
 
 			const res = await request(srv.app).get("/user/config/bathroom").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
-			expect(res.body).toEqual(data);
+			expect(res.body).toEqual({ name: "admin", modules });
 		});
 
-		it("falls back to the global config when no client-specific file exists", async () => {
-			const globalData = { name: "admin", modules: [{ module: "clock" }] };
-			const p = path.join(rootDir, "configs/users/admin.json");
-			fs.mkdirSync(path.dirname(p), { recursive: true });
-			fs.writeFileSync(p, JSON.stringify(globalData));
+		it("falls back to the global config when no client-specific row exists", async () => {
+			const modules = [{ module: "clock" }];
+			db.insert(userConfigsTable).values({ username: "admin", clientName: "", modules: JSON.stringify(modules) }).run();
 
 			const res = await request(srv.app).get("/user/config/bathroom").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
-			expect(res.body).toEqual(globalData);
+			expect(res.body).toEqual({ name: "admin", modules });
 		});
 
-		it("returns the empty-modules fallback when neither file exists", async () => {
+		it("returns the empty-modules fallback when neither row exists", async () => {
 			const res = await request(srv.app).get("/user/config/bathroom").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
 			expect(res.body).toEqual({ name: "admin", modules: [] });
@@ -217,10 +209,10 @@ describe("Server.userEndpoints", () => {
 	});
 
 	describe("GET /user/clients", () => {
-		it("lists clients where the logged-in user appears in the users array", async () => {
-			const p = path.join(rootDir, "configs/bathroom/bathroom.json");
-			fs.mkdirSync(path.dirname(p), { recursive: true });
-			fs.writeFileSync(p, JSON.stringify({ users: ["admin", "alice"] }));
+		it("lists clients where the logged-in user appears in client_users", async () => {
+			db.insert(clientsTable).values({ name: "bathroom", type: "mirror" }).run();
+			db.insert(clientUsersTable).values({ clientName: "bathroom", username: "admin" }).run();
+			db.insert(clientUsersTable).values({ clientName: "bathroom", username: "alice" }).run();
 
 			const res = await request(srv.app).get("/user/clients").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
@@ -228,9 +220,8 @@ describe("Server.userEndpoints", () => {
 		});
 
 		it("excludes clients where the user is not listed", async () => {
-			const p = path.join(rootDir, "configs/bathroom/bathroom.json");
-			fs.mkdirSync(path.dirname(p), { recursive: true });
-			fs.writeFileSync(p, JSON.stringify({ users: ["alice"] }));
+			db.insert(clientsTable).values({ name: "bathroom", type: "mirror" }).run();
+			db.insert(clientUsersTable).values({ clientName: "bathroom", username: "alice" }).run();
 
 			const res = await request(srv.app).get("/user/clients").set("Cookie", adminCookie);
 			expect(res.status).toBe(200);
@@ -280,7 +271,7 @@ describe("Server.userEndpoints", () => {
 	});
 
 	describe("PUT /user/config", () => {
-		it("saves the global user config and returns ok", async () => {
+		it("saves the global user config to DB and returns ok", async () => {
 			const modules = [{ module: "clock", position: "top_left" }];
 			const res = await request(srv.app)
 				.put("/user/config")
@@ -290,11 +281,10 @@ describe("Server.userEndpoints", () => {
 			expect(res.status).toBe(200);
 			expect(res.body).toEqual({ ok: true });
 
-			const saved = JSON.parse(
-				fs.readFileSync(path.join(rootDir, "configs/users/admin.json"), "utf8"),
-			);
-			expect(saved.modules).toEqual(modules);
-			expect(saved.name).toBe("admin");
+			const row = db.select().from(userConfigsTable)
+				.where(and(eq(userConfigsTable.username, "admin"), eq(userConfigsTable.clientName, "")))
+				.get();
+			expect(JSON.parse(row!.modules)).toEqual(modules);
 		});
 
 		it("returns 400 when modules is not an array", async () => {
@@ -307,7 +297,7 @@ describe("Server.userEndpoints", () => {
 	});
 
 	describe("PUT /user/config/:client", () => {
-		it("saves a client-specific config and returns ok", async () => {
+		it("saves a client-specific config to DB and returns ok", async () => {
 			const modules = [{ module: "clock" }];
 			const res = await request(srv.app)
 				.put("/user/config/bathroom")
@@ -317,10 +307,10 @@ describe("Server.userEndpoints", () => {
 			expect(res.status).toBe(200);
 			expect(res.body).toEqual({ ok: true });
 
-			const saved = JSON.parse(
-				fs.readFileSync(path.join(rootDir, "configs/bathroom/users/admin.json"), "utf8"),
-			);
-			expect(saved.modules).toEqual(modules);
+			const row = db.select().from(userConfigsTable)
+				.where(and(eq(userConfigsTable.username, "admin"), eq(userConfigsTable.clientName, "bathroom")))
+				.get();
+			expect(JSON.parse(row!.modules)).toEqual(modules);
 		});
 
 		it("returns 400 when modules is not an array", async () => {
@@ -339,6 +329,7 @@ describe("Server.userEndpoints", () => {
 
 describe("Server.adminEndpoints", () => {
 	let rootDir: string;
+	let db: Db;
 	let srv: Server;
 	let adminCookie: string;
 	let userCookie: string;
@@ -346,12 +337,11 @@ describe("Server.adminEndpoints", () => {
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-admin-ep-"));
 
-		const bathCfgPath = path.join(rootDir, "configs/bathroom/bathroom.json");
-		fs.mkdirSync(path.dirname(bathCfgPath), { recursive: true });
-		fs.writeFileSync(bathCfgPath, JSON.stringify({ users: ["alice"] }));
-
-		srv = makeServer(rootDir);
+		db = initDb(":memory:");
+		srv = makeServer(rootDir, db);
 		srv.auth.createAccount("alice", "Alice", "user", "pass1");
+		db.insert(clientsTable).values({ name: "bathroom", type: "mirror" }).run();
+		db.insert(clientUsersTable).values({ clientName: "bathroom", username: "alice" }).run();
 		srv.adminEndpoints();
 
 		adminCookie = sessionCookie(srv.auth, "admin", "admin");
@@ -390,7 +380,7 @@ describe("Server.adminEndpoints", () => {
 	});
 
 	describe("POST /admin/users", () => {
-		it("creates a new account and auto-creates its global config file", async () => {
+		it("creates a new account and seeds an empty global user_config row", async () => {
 			const res = await request(srv.app)
 				.post("/admin/users")
 				.set("Cookie", adminCookie)
@@ -399,10 +389,11 @@ describe("Server.adminEndpoints", () => {
 			expect(res.status).toBe(201);
 			expect(srv.auth.login("bob", "bobpass")).not.toBeNull();
 
-			const cfg = JSON.parse(
-				fs.readFileSync(path.join(rootDir, "configs/users/bob.json"), "utf8"),
-			);
-			expect(cfg).toEqual({ name: "bob", modules: [] });
+			const row = db.select().from(userConfigsTable)
+				.where(and(eq(userConfigsTable.username, "bob"), eq(userConfigsTable.clientName, "")))
+				.get();
+			expect(row).not.toBeNull();
+			expect(JSON.parse(row!.modules)).toEqual([]);
 		});
 
 		it("returns 400 when required fields are missing", async () => {
@@ -456,7 +447,7 @@ describe("Server.adminEndpoints", () => {
 	});
 
 	describe("DELETE /admin/users/:username", () => {
-		it("removes the account and strips the user from all client configs", async () => {
+		it("removes the account and cascade-removes the user from client_users", async () => {
 			const res = await request(srv.app)
 				.delete("/admin/users/alice")
 				.set("Cookie", adminCookie);
@@ -464,10 +455,9 @@ describe("Server.adminEndpoints", () => {
 			expect(res.status).toBe(200);
 			expect(srv.auth.listAccounts().find((a) => a.username === "alice")).toBeUndefined();
 
-			const cfg = JSON.parse(
-				fs.readFileSync(path.join(rootDir, "configs/bathroom/bathroom.json"), "utf8"),
-			) as { users: string[] };
-			expect(cfg.users).not.toContain("alice");
+			const rows = db.select().from(clientUsersTable)
+				.where(eq(clientUsersTable.username, "alice")).all();
+			expect(rows).toHaveLength(0);
 		});
 
 		it("returns 404 for an unknown user", async () => {
@@ -487,7 +477,7 @@ describe("Server.adminEndpoints", () => {
 	});
 
 	describe("PUT /admin/clients/:client/users", () => {
-		it("replaces the users list on the client config", async () => {
+		it("replaces the users list in client_users", async () => {
 			const res = await request(srv.app)
 				.put("/admin/clients/bathroom/users")
 				.set("Cookie", adminCookie)
@@ -496,10 +486,12 @@ describe("Server.adminEndpoints", () => {
 			expect(res.status).toBe(200);
 			expect(res.body).toEqual({ ok: true });
 
-			const cfg = JSON.parse(
-				fs.readFileSync(path.join(rootDir, "configs/bathroom/bathroom.json"), "utf8"),
-			) as { users: string[] };
-			expect(cfg.users).toEqual(["admin", "alice"]);
+			const rows = db.select({ username: clientUsersTable.username })
+				.from(clientUsersTable)
+				.where(eq(clientUsersTable.clientName, "bathroom"))
+				.all();
+			expect(rows.map((r) => r.username)).toEqual(expect.arrayContaining(["admin", "alice"]));
+			expect(rows).toHaveLength(2);
 		});
 
 		it("returns 404 for a client not in clientConfigs", async () => {
@@ -518,6 +510,117 @@ describe("Server.adminEndpoints", () => {
 			expect(res.status).toBe(400);
 		});
 	});
+
+	describe("GET /admin/clients/:client/config", () => {
+		it("returns the client config when the client exists in DB", async () => {
+			const modules = [{ module: "clock", position: "top_left" }];
+			db.update(clientsTable).set({
+				type: "mirror",
+				userSwitchMode: "DELETE",
+				defaultModules: JSON.stringify(modules),
+			}).where(eq(clientsTable.name, "bathroom")).run();
+
+			const res = await request(srv.app)
+				.get("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie);
+
+			expect(res.status).toBe(200);
+			expect(res.body).toEqual({
+				name: "bathroom",
+				type: "mirror",
+				userSwitchMode: "DELETE",
+				defaultModules: modules,
+			});
+		});
+
+		it("returns 404 when the client has no DB row", async () => {
+			const res = await request(srv.app)
+				.get("/admin/clients/nonexistent/config")
+				.set("Cookie", adminCookie);
+			expect(res.status).toBe(404);
+		});
+
+		it("returns 401 without a session cookie", async () => {
+			const res = await request(srv.app).get("/admin/clients/bathroom/config");
+			expect(res.status).toBe(401);
+		});
+	});
+
+	describe("PUT /admin/clients/:client/config", () => {
+		it("updates defaultModules and returns ok", async () => {
+			const modules = [{ module: "clock" }];
+			const res = await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie)
+				.send({ defaultModules: modules });
+
+			expect(res.status).toBe(200);
+			expect(res.body).toEqual({ ok: true });
+
+			const row = db.select({ defaultModules: clientsTable.defaultModules })
+				.from(clientsTable).where(eq(clientsTable.name, "bathroom")).get();
+			expect(JSON.parse(row!.defaultModules)).toEqual(modules);
+		});
+
+		it("updates type and userSwitchMode independently", async () => {
+			await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie)
+				.send({ type: "dashboard", userSwitchMode: "DELETE" });
+
+			const row = db.select({ type: clientsTable.type, userSwitchMode: clientsTable.userSwitchMode })
+				.from(clientsTable).where(eq(clientsTable.name, "bathroom")).get();
+			expect(row!.type).toBe("dashboard");
+			expect(row!.userSwitchMode).toBe("DELETE");
+		});
+
+		it("returns 404 when the client has no DB row", async () => {
+			const res = await request(srv.app)
+				.put("/admin/clients/nonexistent/config")
+				.set("Cookie", adminCookie)
+				.send({ type: "mirror" });
+			expect(res.status).toBe(404);
+		});
+
+		it("returns 400 for an invalid type value", async () => {
+			const res = await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie)
+				.send({ type: "spaceship" });
+			expect(res.status).toBe(400);
+		});
+
+		it("returns 400 for an invalid userSwitchMode value", async () => {
+			const res = await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie)
+				.send({ userSwitchMode: "KEEP" });
+			expect(res.status).toBe(400);
+		});
+
+		it("returns 400 when defaultModules is not an array", async () => {
+			const res = await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie)
+				.send({ defaultModules: "not-an-array" });
+			expect(res.status).toBe(400);
+		});
+
+		it("returns 400 when no valid fields are provided", async () => {
+			const res = await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.set("Cookie", adminCookie)
+				.send({});
+			expect(res.status).toBe(400);
+		});
+
+		it("returns 401 without a session cookie", async () => {
+			const res = await request(srv.app)
+				.put("/admin/clients/bathroom/config")
+				.send({ type: "mirror" });
+			expect(res.status).toBe(401);
+		});
+	});
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -526,11 +629,14 @@ describe("Server.adminEndpoints", () => {
 
 describe("Server.userServiceEndpoints", () => {
 	let rootDir: string;
+	let db: Db;
 	let srv: Server;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dalamirror-usersvc-"));
-		srv = makeServer(rootDir);
+		db = initDb(":memory:");
+		srv = makeServer(rootDir, db);
+		srv.auth.createAccount("dala", "Dala", "user", "hunter2"); // needed for user_configs FK
 		srv.userServiceEndpoints();
 	});
 
@@ -539,10 +645,8 @@ describe("Server.userServiceEndpoints", () => {
 	});
 
 	it("returns the client-specific user config when it exists", async () => {
-		const data = { name: "dala", modules: [{ module: "clock" }] };
-		const p = path.join(rootDir, "configs/bathroom/users/dala.json");
-		fs.mkdirSync(path.dirname(p), { recursive: true });
-		fs.writeFileSync(p, JSON.stringify(data));
+		const modules = [{ module: "clock" }];
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "bathroom", modules: JSON.stringify(modules) }).run();
 
 		const res = await request(srv.app)
 			.post("/get-user/dala")
@@ -550,14 +654,11 @@ describe("Server.userServiceEndpoints", () => {
 			.send("bathroom");
 
 		expect(res.status).toBe(200);
-		expect(res.body).toEqual(data);
+		expect(res.body).toEqual({ name: "dala", modules });
 	});
 
 	it("falls back to the global user config when no client-specific one exists", async () => {
-		const data = { name: "dala", modules: [] };
-		const p = path.join(rootDir, "configs/users/dala.json");
-		fs.mkdirSync(path.dirname(p), { recursive: true });
-		fs.writeFileSync(p, JSON.stringify(data));
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "", modules: "[]" }).run();
 
 		const res = await request(srv.app)
 			.post("/get-user/dala")
@@ -565,20 +666,13 @@ describe("Server.userServiceEndpoints", () => {
 			.send("bathroom");
 
 		expect(res.status).toBe(200);
-		expect(res.body).toEqual(data);
+		expect(res.body).toEqual({ name: "dala", modules: [] });
 	});
 
 	it("prefers the client-specific config over the global one", async () => {
-		const clientData = { name: "dala", modules: [{ module: "clock" }] };
-		const globalData = { name: "dala", modules: [] };
-
-		const cp = path.join(rootDir, "configs/bathroom/users/dala.json");
-		fs.mkdirSync(path.dirname(cp), { recursive: true });
-		fs.writeFileSync(cp, JSON.stringify(clientData));
-
-		const gp = path.join(rootDir, "configs/users/dala.json");
-		fs.mkdirSync(path.dirname(gp), { recursive: true });
-		fs.writeFileSync(gp, JSON.stringify(globalData));
+		const clientModules = [{ module: "clock" }];
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "bathroom", modules: JSON.stringify(clientModules) }).run();
+		db.insert(userConfigsTable).values({ username: "dala", clientName: "", modules: "[]" }).run();
 
 		const res = await request(srv.app)
 			.post("/get-user/dala")
@@ -586,10 +680,10 @@ describe("Server.userServiceEndpoints", () => {
 			.send("bathroom");
 
 		expect(res.status).toBe(200);
-		expect(res.body).toEqual(clientData);
+		expect(res.body).toEqual({ name: "dala", modules: clientModules });
 	});
 
-	it("returns 404 when neither config file exists", async () => {
+	it("returns 404 when neither config row exists", async () => {
 		const res = await request(srv.app)
 			.post("/get-user/dala")
 			.set("Content-Type", "text/plain")

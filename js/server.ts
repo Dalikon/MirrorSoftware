@@ -7,8 +7,11 @@ import express from "express";
 import helmet from "helmet";
 import { Server as SocketIOServer, Socket as SocketIOSocket } from "socket.io";
 
+import { eq, and } from "drizzle-orm";
 import ClientTracker from "./clientTracker.js";
 import { AuthService, COOKIE_NAME } from "./authService.js";
+import { getDb } from "./db/index.js";
+import { clients as clientsTable, clientUsers as clientUsersTable, userConfigs as userConfigsTable } from "./db/schema.js";
 import type { ServerConfig } from "../types/config.js";
 import type {
 	ModuleSocketPayload,
@@ -93,23 +96,30 @@ class Server {
 		};
 
 		const readUserConfig = (username: string, clientName?: string): object => {
+			const db = getDb();
 			if (clientName) {
-				const clientPath = path.join(this.rootDir, "configs", clientName, "users", `${username}.json`);
-				if (fs.existsSync(clientPath))
-					return JSON.parse(fs.readFileSync(clientPath, "utf8")) as object;
+				const row = db.select().from(userConfigsTable)
+					.where(and(eq(userConfigsTable.username, username), eq(userConfigsTable.clientName, clientName)))
+					.get();
+				if (row) return { name: username, modules: JSON.parse(row.modules) as unknown[] };
 			}
-			const globalPath = path.join(this.rootDir, "configs/users", `${username}.json`);
-			if (fs.existsSync(globalPath))
-				return JSON.parse(fs.readFileSync(globalPath, "utf8")) as object;
+			const globalRow = db.select().from(userConfigsTable)
+				.where(and(eq(userConfigsTable.username, username), eq(userConfigsTable.clientName, "")))
+				.get();
+			if (globalRow) return { name: username, modules: JSON.parse(globalRow.modules) as unknown[] };
 			return { name: username, modules: [] };
 		};
 
 		const writeUserConfig = (username: string, modules: unknown[], clientName?: string): void => {
-			const filePath = clientName
-				? path.join(this.rootDir, "configs", clientName, "users", `${username}.json`)
-				: path.join(this.rootDir, "configs/users", `${username}.json`);
-			fs.mkdirSync(path.dirname(filePath), { recursive: true });
-			fs.writeFileSync(filePath, JSON.stringify({ name: username, modules }, null, 2));
+			const db = getDb();
+			const clientNameVal = clientName ?? "";
+			db.insert(userConfigsTable)
+				.values({ username, clientName: clientNameVal, modules: JSON.stringify(modules) })
+				.onConflictDoUpdate({
+					target: [userConfigsTable.username, userConfigsTable.clientName],
+					set: { modules: JSON.stringify(modules) },
+				})
+				.run();
 		};
 
 		// returns logged in users general config
@@ -139,17 +149,14 @@ class Server {
 		this.app.get("/user/clients", requireAuth, (req, res) => {
 			const { username } = (req as express.Request & { sessionInfo: { username: string } })
 				.sessionInfo;
-			console.log("user/clients:", this.config.clientConfigs);
-			const assigned = this.config.clientConfigs.filter((name) => {
-				try {
-					const cfg = JSON.parse(
-						fs.readFileSync(path.join(this.rootDir, "configs", name, `${name}.json`), "utf8"),
-					) as { users?: string[] };
-					return (cfg.users ?? []).includes(username);
-				} catch {
-					return false;
-				}
-			});
+			const db = getDb();
+			const rows = db.select({ clientName: clientUsersTable.clientName })
+				.from(clientUsersTable)
+				.where(eq(clientUsersTable.username, username))
+				.all();
+			const assigned = rows
+				.map((r) => r.clientName)
+				.filter((name) => this.config.clientConfigs.includes(name));
 			res.json(assigned);
 		});
 
@@ -254,12 +261,10 @@ class Server {
 			}
 			try {
 				this.auth.createAccount(username, displayName, role as "admin" | "user", password);
-				// Auto-create global mirror config if it doesn't exist
-				const configPath = path.join(this.rootDir, "configs/users", `${username}.json`);
-				if (!fs.existsSync(configPath)) {
-					fs.mkdirSync(path.dirname(configPath), { recursive: true });
-					fs.writeFileSync(configPath, JSON.stringify({ name: username, modules: [] }, null, 2));
-				}
+				getDb().insert(userConfigsTable)
+					.values({ username, clientName: "", modules: "[]" })
+					.onConflictDoNothing()
+					.run();
 				res.status(201).json({ ok: true });
 			} catch (e) {
 				res.status(409).json({ error: (e as Error).message });
@@ -284,19 +289,6 @@ class Server {
 			const username = req.params["username"] as string;
 			try {
 				this.auth.deleteAccount(username);
-				// Remove from all client users lists
-				for (const clientName of this.config.clientConfigs) {
-					const cfgPath = path.join(this.rootDir, "configs", clientName, `${clientName}.json`);
-					try {
-						const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")) as { users?: string[] };
-						if (cfg.users?.includes(username)) {
-							cfg.users = cfg.users.filter((u) => u !== username);
-							fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
-						}
-					} catch {
-						/* ignore unreadable configs */
-					}
-				}
 				res.json({ ok: true });
 			} catch (e) {
 				res.status(404).json({ error: (e as Error).message });
@@ -305,21 +297,18 @@ class Server {
 
 		// return clients and users who has a specific config on that client
 		this.app.get("/admin/clients", requireAdmin, (_req, res) => {
+			const db = getDb();
 			const clients = this.config.clientConfigs.map((name) => {
-				const configPath = path.join(this.rootDir, "configs", name, `${name}.json`);
-				let users: string[] = [];
-				try {
-					users =
-						(JSON.parse(fs.readFileSync(configPath, "utf8")) as { users?: string[] }).users ?? [];
-				} catch {
-					/* ignore unreadable configs */
-				}
-				return { name, users };
+				const rows = db.select({ username: clientUsersTable.username })
+					.from(clientUsersTable)
+					.where(eq(clientUsersTable.clientName, name))
+					.all();
+				return { name, users: rows.map((r) => r.username) };
 			});
 			res.json(clients);
 		});
 
-		// add new user to a client
+		// replace the full users list on a client
 		this.app.put("/admin/clients/:client/users", requireAdmin, (req, res) => {
 			const clientName = req.params["client"] as string;
 			if (!this.config.clientConfigs.includes(clientName)) {
@@ -331,22 +320,83 @@ class Server {
 				res.status(400).json({ error: "users must be an array" });
 				return;
 			}
-			const configPath = path.join(this.rootDir, "configs", clientName, `${clientName}.json`);
-			try {
-				const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
-				config.users = users;
-				fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-				res.json({ ok: true });
-			} catch {
-				res.status(500).json({ error: "Failed to update client config" });
+			const db = getDb();
+			db.delete(clientUsersTable).where(eq(clientUsersTable.clientName, clientName)).run();
+			for (const username of users) {
+				db.insert(clientUsersTable).values({ clientName, username }).run();
 			}
+			res.json({ ok: true });
+		});
+
+		// get a single client's config (type, userSwitchMode, defaultModules)
+		this.app.get("/admin/clients/:client/config", requireAdmin, (req, res) => {
+			const clientName = req.params["client"] as string;
+			const db = getDb();
+			const row = db.select({
+				name: clientsTable.name,
+				type: clientsTable.type,
+				userSwitchMode: clientsTable.userSwitchMode,
+				defaultModules: clientsTable.defaultModules,
+			}).from(clientsTable).where(eq(clientsTable.name, clientName)).get();
+
+			if (!row) {
+				res.status(404).json({ error: "Client not found" });
+				return;
+			}
+
+			res.json({
+				name: row.name,
+				type: row.type,
+				userSwitchMode: row.userSwitchMode,
+				defaultModules: JSON.parse(row.defaultModules) as unknown[],
+			});
+		});
+
+		// update a single client's config (partial — only supplied fields are changed)
+		this.app.put("/admin/clients/:client/config", requireAdmin, (req, res) => {
+			const clientName = req.params["client"] as string;
+			const db = getDb();
+
+			const existing = db.select({ name: clientsTable.name })
+				.from(clientsTable).where(eq(clientsTable.name, clientName)).get();
+			if (!existing) {
+				res.status(404).json({ error: "Client not found" });
+				return;
+			}
+
+			const body = req.body as { type?: string; userSwitchMode?: string; defaultModules?: unknown[] };
+
+			if (body.type !== undefined && body.type !== "mirror" && body.type !== "dashboard") {
+				res.status(400).json({ error: "type must be 'mirror' or 'dashboard'" });
+				return;
+			}
+			if (body.userSwitchMode !== undefined && body.userSwitchMode !== "SAVE" && body.userSwitchMode !== "DELETE") {
+				res.status(400).json({ error: "userSwitchMode must be 'SAVE' or 'DELETE'" });
+				return;
+			}
+			if (body.defaultModules !== undefined && !Array.isArray(body.defaultModules)) {
+				res.status(400).json({ error: "defaultModules must be an array" });
+				return;
+			}
+
+			const patch: { type?: string; userSwitchMode?: string; defaultModules?: string } = {};
+			if (body.type !== undefined) patch.type = body.type;
+			if (body.userSwitchMode !== undefined) patch.userSwitchMode = body.userSwitchMode;
+			if (body.defaultModules !== undefined) patch.defaultModules = JSON.stringify(body.defaultModules);
+
+			if (Object.keys(patch).length === 0) {
+				res.status(400).json({ error: "No valid fields provided" });
+				return;
+			}
+
+			db.update(clientsTable).set(patch).where(eq(clientsTable.name, clientName)).run();
+			res.json({ ok: true });
 		});
 	}
 
 	userServiceEndpoints(): void {
 		this.app.post("/get-user/:userName", (req, res) => {
 			const userName = req.params.userName;
-			const fileName = `${userName}.json`;
 			let clientName = "";
 
 			req.on("data", (chunk) => {
@@ -354,49 +404,71 @@ class Server {
 			});
 
 			req.on("end", () => {
-				let filePath = path.join(
-          this.rootDir,
-					"/configs",
-					"/" + clientName,
-					"/users",
-					"/" + fileName,
-				);
-				if (!fs.existsSync(filePath)) {
-					filePath = path.join(
-            this.rootDir,
-						"/configs",
-						"/users",
-						"/" + fileName,
-					);
-					if (!fs.existsSync(filePath)) {
-						res.status(404).json({ error: "User config not found" });
+				const db = getDb();
+				if (clientName) {
+					const row = db.select().from(userConfigsTable)
+						.where(and(eq(userConfigsTable.username, userName), eq(userConfigsTable.clientName, clientName)))
+						.get();
+					if (row) {
+						res.json({ name: userName, modules: JSON.parse(row.modules) as unknown[] });
 						return;
 					}
 				}
-
-				const userConfig = JSON.parse(fs.readFileSync(filePath, "utf8"));
-				res.json(userConfig);
+				const globalRow = db.select().from(userConfigsTable)
+					.where(and(eq(userConfigsTable.username, userName), eq(userConfigsTable.clientName, "")))
+					.get();
+				if (globalRow) {
+					res.json({ name: userName, modules: JSON.parse(globalRow.modules) as unknown[] });
+					return;
+				}
+				res.status(404).json({ error: "User config not found" });
 			});
 		});
 	}
 
 	loadTrackerFile(): void {
-		try {
-			const data = fs.readFileSync(path.join(this.rootDir, "workData/cTracker.json"), "utf8");
-			const tracked: unknown[] = JSON.parse(data);
-			this.trackedClients = tracked.map((obj) => {
-				const tracker = ClientTracker.fromObject(
-					obj as Parameters<typeof ClientTracker.fromObject>[0],
-				);
-				tracker.status = "offline";
-				tracker.connections = [];
-				return tracker;
-			});
-			console.log("Client tracker data loaded.");
-		} catch (error) {
-			console.error("Error loading cTracker.json:", (error as Error).message);
-			this.trackedClients = [];
+		const db = getDb();
+		const allClientNames = [...this.config.clientConfigs, this.config.rootConf];
+
+		for (const name of allClientNames) {
+			const existing = db
+				.select({ name: clientsTable.name })
+				.from(clientsTable)
+				.where(eq(clientsTable.name, name))
+				.get();
+			if (!existing) {
+				let clientType = name === this.config.rootConf ? "dashboard" : "mirror";
+				let defaultModules = "[]";
+				let userSwitchMode = "SAVE";
+				const cfgPath = path.join(this.rootDir, "configs", name, `${name}.json`);
+				try {
+					const raw = JSON.parse(fs.readFileSync(cfgPath, "utf8")) as {
+						type?: string;
+						userSwitchMode?: string;
+						defaultModules?: unknown[];
+					};
+					if (raw.type) clientType = raw.type as "mirror" | "dashboard";
+					if (raw.userSwitchMode) userSwitchMode = raw.userSwitchMode;
+					if (raw.defaultModules) defaultModules = JSON.stringify(raw.defaultModules);
+				} catch { /* no config file, use defaults */ }
+				db.insert(clientsTable).values({ name, type: clientType, defaultModules, userSwitchMode }).run();
+			}
 		}
+
+		const rows = db.select().from(clientsTable).all();
+		this.trackedClients = rows.map(
+			(row) =>
+				new ClientTracker(
+					row.name,
+					row.type as "mirror" | "dashboard",
+					row.lastOnline ? new Date(row.lastOnline) : null,
+					null,
+					"offline",
+					[],
+					row.currentUser,
+				),
+		);
+		console.log("Client tracker data loaded from DB.");
 	}
 
 	pushTrackersToRoot(): void {
@@ -411,6 +483,7 @@ class Server {
 				(socket.handshake.headers["x-forwarded-for"] as string) || socket.handshake.address;
 
 			this.clientMap.set(clientName, socket);
+			const db = getDb();
 			let beats = 0;
 
 			const client = this.trackedClients.find((c) => c.name === clientName);
@@ -430,11 +503,12 @@ class Server {
 				});
 			}
 
-			fs.writeFileSync(
-				path.join(this.rootDir, "workData/cTracker.json"),
-				JSON.stringify(this.trackedClients, null, 2),
-				"utf8",
-			);
+			db.update(clientsTable).set({
+				status: "online",
+				lastOnline: client.lastOnline?.getTime() ?? null,
+				connectedAt: client.connectedAt?.getTime() ?? null,
+				connections: JSON.stringify(client.connections),
+			}).where(eq(clientsTable.name, client.name)).run();
 			this.pushTrackersToRoot();
 
 			let missedHeartbeats = 0;
@@ -460,11 +534,9 @@ class Server {
 				missedHeartbeats = 0;
 				beats += 1;
 				if (beats === 3) {
-					fs.writeFileSync(
-				    path.join(this.rootDir, "workData/cTracker.json"),
-						JSON.stringify(this.trackedClients, null, 2),
-						"utf8",
-					);
+					db.update(clientsTable).set({
+						lastOnline: client.lastOnline?.getTime() ?? null,
+					}).where(eq(clientsTable.name, client.name)).run();
 					beats = 0;
 				}
 			});
@@ -518,8 +590,12 @@ class Server {
 				const user = payload.user === "GLOBAL" ? "GLOBAL" : session.username;
 
 				const editClient = this.trackedClients.find((c) => c.name === payload.client);
-				if (editClient) editClient.user = user;
-				this.clientMap.get(payload.client)?.emit("CHANGE_USER_Y", { client: payload.client, user });//.emit("CHANGE_USER_Y", payload);
+				if (editClient) {
+					editClient.user = user;
+					db.update(clientsTable).set({ currentUser: user })
+						.where(eq(clientsTable.name, payload.client)).run();
+				}
+				this.clientMap.get(payload.client)?.emit("CHANGE_USER_Y", { client: payload.client, user });
 			});
 
 			socket.on("disconnect", () => {
@@ -533,11 +609,11 @@ class Server {
 					this.clientMap.delete(client.name);
 				}
 				client.user = "default";
-				fs.writeFileSync(
-					path.join(this.rootDir, "workData/cTracker.json"),
-					JSON.stringify(this.trackedClients, null, 2),
-					"utf8",
-				);
+				db.update(clientsTable).set({
+					status: "offline",
+					connections: JSON.stringify(client.connections),
+					currentUser: "default",
+				}).where(eq(clientsTable.name, client.name)).run();
 				clearTimeout(heartbeatTimer);
 				this.pushTrackersToRoot();
 			});
@@ -614,7 +690,7 @@ class Server {
 
 			this.app.use(express.json());
 
-			this.auth = new AuthService(this.rootDir);
+			this.auth = new AuthService(getDb());
 
 			this.authEndpoints();
 			this.userEndpoints();

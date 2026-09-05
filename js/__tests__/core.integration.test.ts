@@ -5,6 +5,8 @@ import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { io as ioClient } from "socket.io-client";
 import Core from "../core.js";
+import { getDb } from "../db/index.js";
+import { clients as clientsTable } from "../db/schema.js";
 
 const BASE_CONFIG = {
 	address: "127.0.0.1",
@@ -126,16 +128,13 @@ describe("Core.start() integration", () => {
 	// ─── checkMirrorConfigs ────────────────────────────────────────────────────
 
 	describe("checkMirrorConfigs", () => {
-		it("creates workData/cTracker.json containing configured clients plus root", async () => {
+		it("seeds configured clients into DB containing configured clients plus root", async () => {
 			rootDir = setupRootDir();
 			core = new Core(rootDir);
 			await core.start();
 
-			const trackerPath = path.join(rootDir, "workData/cTracker.json");
-			expect(fs.existsSync(trackerPath)).toBe(true);
-
-			const trackers = JSON.parse(fs.readFileSync(trackerPath, "utf8")) as { name: string }[];
-			expect(trackers.map((t) => t.name)).toEqual(
+			const rows = getDb().select().from(clientsTable).all();
+			expect(rows.map((r) => r.name)).toEqual(
 				expect.arrayContaining(["bathroom", "root"]),
 			);
 		});
@@ -149,16 +148,19 @@ describe("Core.start() integration", () => {
 			expect(fs.existsSync(path.join(rootDir, "configs/root/root.js"))).toBe(true);
 		});
 
-		it("does not overwrite cTracker.json that already exists", async () => {
+		it("starting a second time with the same DB does not duplicate clients", async () => {
 			rootDir = setupRootDir();
-			const trackerPath = path.join(rootDir, "workData/cTracker.json");
-			const existing = JSON.stringify([{ name: "pre-existing", type: "mirror" }]);
-			fs.writeFileSync(trackerPath, existing);
+			core = new Core(rootDir);
+			await core.start();
+			await core.httpServer.close();
+			core = null;
 
 			core = new Core(rootDir);
 			await core.start();
 
-			expect(fs.readFileSync(trackerPath, "utf8")).toBe(existing);
+			const rows = getDb().select().from(clientsTable).all();
+			expect(rows.filter((r) => r.name === "bathroom")).toHaveLength(1);
+			expect(rows.filter((r) => r.name === "root")).toHaveLength(1);
 		});
 	});
 
@@ -245,7 +247,7 @@ describe("Core.start() integration", () => {
 			return (c.httpServer.server!.address() as AddressInfo).port;
 		}
 
-		it("accepts a connection from a client tracked in cTracker.json", async () => {
+		it("accepts a connection from a client seeded in DB", async () => {
 			rootDir = setupRootDir();
 			core = new Core(rootDir);
 			await core.start();
@@ -265,7 +267,7 @@ describe("Core.start() integration", () => {
 			socket.disconnect();
 		});
 
-		it("immediately disconnects a client whose name is not in cTracker.json", async () => {
+		it("immediately disconnects a client whose name is not in DB", async () => {
 			rootDir = setupRootDir();
 			core = new Core(rootDir);
 			await core.start();

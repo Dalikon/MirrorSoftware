@@ -5,12 +5,14 @@ import { Router } from "express";
 import type { Application } from "express";
 import type { Server as SocketIOServer } from "socket.io";
 
+import { eq, and } from "drizzle-orm";
 import Server from "./server.js";
-import ClientTracker from "./clientTracker.js";
 import Helper from "./helper.js";
+import { initDb, getDb } from "./db/index.js";
+import { clients as clientsTable, clientUsers as clientUsersTable, userConfigs as userConfigsTable } from "./db/schema.js";
 
 import type { ServerConfig } from "../types/config.js";
-import type { ModuleDefinition, ClientConfig, UserConfig } from "../types/module.js";
+import type { ModuleDefinition, UserConfig } from "../types/module.js";
 import type { ModuleManifest, HelperPermission } from "../types/index.js";
 
 export type UserObj = { path: string; data: UserConfig };
@@ -58,32 +60,58 @@ class Core {
 	}
 
 	getUsersPerClient(client: string, users: string[]): UserObj[] {
-		const folder = `${this.rootDir}/configs/${client}/users`;
-
+		const db = getDb();
 		return users.map((user) => {
-			const filePath = path.join(folder, user + ".json");
-			const data = fs.readFileSync(filePath, "utf8");
-			return { path: filePath, data: JSON.parse(data) as UserConfig };
+			const clientRow = db.select({ modules: userConfigsTable.modules })
+				.from(userConfigsTable)
+				.where(and(eq(userConfigsTable.username, user), eq(userConfigsTable.clientName, client)))
+				.get();
+			if (clientRow) {
+				return { path: "", data: { name: user, modules: JSON.parse(clientRow.modules) as ModuleDefinition[] } };
+			}
+			const globalRow = db.select({ modules: userConfigsTable.modules })
+				.from(userConfigsTable)
+				.where(and(eq(userConfigsTable.username, user), eq(userConfigsTable.clientName, "")))
+				.get();
+			return {
+				path: "",
+				data: { name: user, modules: globalRow ? JSON.parse(globalRow.modules) as ModuleDefinition[] : [] },
+			};
 		});
 	}
 
 	createModuleArray(): ClientModuleMap {
 		console.log("Searching for modules");
+		const db = getDb();
 		const modulesInMirrors: ClientModuleMap = {};
 
 		for (const client of this.config.clientConfigs) {
-			let jsonData: ClientConfig;
-			try {
-				const data = fs.readFileSync(path.join(this.rootDir, "configs", client, `${client}.json`), "utf8");
-				jsonData = JSON.parse(data) as ClientConfig;
-			} catch (parseErr) {
-				console.error(`Error parsing ${client} module config`, parseErr);
+			const row = db.select({ defaultModules: clientsTable.defaultModules })
+				.from(clientsTable)
+				.where(eq(clientsTable.name, client))
+				.get();
+
+			if (!row) {
+				console.error(`No DB record for client ${client}, skipping`);
 				continue;
 			}
 
+			let defaultModules: ModuleDefinition[];
+			try {
+				defaultModules = JSON.parse(row.defaultModules) as ModuleDefinition[];
+			} catch {
+				console.error(`Error parsing defaultModules for ${client}`);
+				continue;
+			}
+
+			const userRows = db.select({ username: clientUsersTable.username })
+				.from(clientUsersTable)
+				.where(eq(clientUsersTable.clientName, client))
+				.all();
+
 			modulesInMirrors[client] = {
-				defaultModules: jsonData.defaultModules,
-				usersSpecific: this.getUsersPerClient(client, jsonData.users),
+				defaultModules,
+				usersSpecific: this.getUsersPerClient(client, userRows.map((r) => r.username)),
 			};
 		}
 
@@ -204,10 +232,6 @@ class Core {
 	checkMirrorConfigs(): void {
 		console.log("Checking if configs are correct");
 
-		let trackerFileExists = true;
-		const clientTrackers: ClientTracker[] = [];
-		if (!fs.existsSync(path.join(this.rootDir, "workData/cTracker.json"))) trackerFileExists = false;
-
 		const clients = this.config.clientConfigs;
 		for (const client of clients) {
 			const folder = path.join(this.rootDir, "configs", client);
@@ -225,24 +249,6 @@ class Core {
 					path.join(folder, `${client}.js`),
 				);
 			}
-
-			if (!trackerFileExists) {
-				clientTrackers.push(new ClientTracker(client, "mirror"));
-			}
-		}
-
-		if (!trackerFileExists) {
-			clientTrackers.push(new ClientTracker("root", "dashboard"));
-			try {
-				fs.writeFileSync(
-					path.join(this.rootDir, "workData/cTracker.json"),
-					JSON.stringify(clientTrackers, null, 2),
-					"utf8",
-				);
-				console.log("Client tracker data saved.");
-			} catch (error) {
-				console.error("Error saving cTracker.json:", (error as Error).message);
-			}
 		}
 
 		const rootConfFolder = path.join(this.rootDir, "configs", this.config.rootConf);
@@ -258,14 +264,19 @@ class Core {
 	}
 
 	async start(): Promise<void> {
+		fs.mkdirSync(path.join(this.rootDir, "workData"), { recursive: true });
+		initDb(path.join(this.rootDir, "workData/mirror.db"));
 		this.checkMirrorConfigs();
-		this.loadModules();
 
+		// open() seeds the clients table from JSON config files via loadTrackerFile,
+		// so loadModules() (which reads defaultModules from DB) must run after.
 		this.httpServer = new Server(this.rootDir, this.config);
 		const apps = await this.httpServer.open();
 
 		this.expressApp = apps.app;
 		this.socketio = apps.io;
+
+		this.loadModules();
 
 		const helperPromises: Promise<void>[] = [];
 		for (const { helper, manifest } of this.moduleHelpers) {

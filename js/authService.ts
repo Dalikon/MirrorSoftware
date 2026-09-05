@@ -1,162 +1,155 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import type { Account, Session, SessionInfo, UserRole } from "../types/auth.js";
+import { eq, lt } from "drizzle-orm";
+import type { Db } from "./db/index.js";
+import { accounts as accountsTable, sessions as sessionsTable } from "./db/schema.js";
+import type { Session, SessionInfo, UserRole } from "../types/auth.js";
 
 export const COOKIE_NAME = "hms-session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class AuthService {
-	private rootDir: string;
-	private sessions = new Map<string, Session>();
+	private db: Db;
+	private sessionCache = new Map<string, Session>();
 
-	private get accountsPath(): string {
-		return path.resolve(this.rootDir, "configs/users/accounts.json");
-	}
-
-	private get sessionsPath(): string {
-		return path.resolve(this.rootDir, "workData/sessions.json");
-	}
-
-	constructor(rootDir: string) {
-		this.rootDir = rootDir;
+	constructor(db: Db) {
+		this.db = db;
 		this.ensureAccounts();
 		this.loadSessions();
-	}
-
-	private ensureAccounts(): void {
-		if (fs.existsSync(this.accountsPath)) return;
-
-		const salt = crypto.randomBytes(16).toString("hex");
-		const defaultAccount: Account = {
-			username: "admin",
-			displayName: "Admin",
-			role: "admin",
-			passwordHash: this.hashPassword("admin", salt),
-			salt,
-		};
-		fs.mkdirSync(path.dirname(this.accountsPath), { recursive: true });
-		fs.writeFileSync(this.accountsPath, JSON.stringify([defaultAccount], null, 2));
-		console.warn(
-			"[Auth] No accounts file found. Created default admin/admin account. Change the password immediately.",
-		);
-	}
-
-	//Keep users logged in even after server restart
-	private loadSessions(): void {
-		if (!fs.existsSync(this.sessionsPath)) return;
-		try {
-			const data = JSON.parse(fs.readFileSync(this.sessionsPath, "utf8")) as Session[];
-			const now = Date.now();
-			for (const s of data) {
-				if (s.expiresAt > now) this.sessions.set(s.token, s);
-			}
-			console.log(`[Auth] Loaded ${this.sessions.size} active session(s).`);
-		} catch {
-			console.warn("[Auth] Failed to load sessions file, starting fresh.");
-		}
-	}
-
-	private saveSessions(): void {
-    fs.mkdirSync(path.dirname(this.sessionsPath), { recursive: true });
-		fs.writeFileSync(
-			this.sessionsPath,
-			JSON.stringify(Array.from(this.sessions.values()), null, 2),
-		);
 	}
 
 	private hashPassword(password: string, salt: string): string {
 		return crypto.scryptSync(password, salt, 64).toString("hex");
 	}
 
-	private loadAccounts(): Account[] {
-		return JSON.parse(fs.readFileSync(this.accountsPath, "utf8")) as Account[];
+	private ensureAccounts(): void {
+		const existing = this.db.select().from(accountsTable).limit(1).all();
+		if (existing.length > 0) return;
+
+		const salt = crypto.randomBytes(16).toString("hex");
+		this.db.insert(accountsTable).values({
+			username: "admin",
+			displayName: "Admin",
+			role: "admin",
+			passwordHash: this.hashPassword("admin", salt),
+			salt,
+		}).run();
+		console.warn(
+			"[Auth] No accounts found. Created default admin/admin account. Change the password immediately.",
+		);
+	}
+
+	private loadSessions(): void {
+		const now = Date.now();
+		this.db.delete(sessionsTable).where(lt(sessionsTable.expiresAt, now)).run();
+		const rows = this.db.select().from(sessionsTable).all();
+		for (const row of rows) {
+			this.sessionCache.set(row.token, row as Session);
+		}
+		console.log(`[Auth] Loaded ${this.sessionCache.size} active session(s).`);
 	}
 
 	login(username: string, password: string): Session | null {
-		const account = this.loadAccounts().find((a) => a.username === username);
+		const account = this.db
+			.select()
+			.from(accountsTable)
+			.where(eq(accountsTable.username, username))
+			.get();
 		if (!account) return null;
 		if (this.hashPassword(password, account.salt) !== account.passwordHash) return null;
 
-		const token = crypto.randomUUID();
 		const session: Session = {
-			token,
+			token: crypto.randomUUID(),
 			username: account.username,
 			displayName: account.displayName,
-			role: account.role,
+			role: account.role as UserRole,
 			expiresAt: Date.now() + SESSION_TTL_MS,
 		};
-		this.sessions.set(token, session);
-		this.saveSessions();
+		this.sessionCache.set(session.token, session);
+		this.db.insert(sessionsTable).values(session).run();
 		return session;
 	}
 
-	// retrieves a session based on its token
 	getSession(token: string): SessionInfo | null {
-		const session = this.sessions.get(token);
+		const session = this.sessionCache.get(token);
 		if (!session) return null;
 		if (session.expiresAt < Date.now()) {
-			this.sessions.delete(token);
+			this.sessionCache.delete(token);
+			this.db.delete(sessionsTable).where(eq(sessionsTable.token, token)).run();
 			return null;
 		}
 		return { username: session.username, displayName: session.displayName, role: session.role };
 	}
 
 	logout(token: string): void {
-		this.sessions.delete(token);
-		this.saveSessions();
+		this.sessionCache.delete(token);
+		this.db.delete(sessionsTable).where(eq(sessionsTable.token, token)).run();
 	}
 
-	listAccounts(): Omit<Account, "passwordHash" | "salt">[] {
-		return this.loadAccounts().map(({ username, displayName, role }) => ({
-			username,
-			displayName,
-			role,
-		}));
+	listAccounts(): { username: string; displayName: string; role: string }[] {
+		return this.db
+			.select({
+				username: accountsTable.username,
+				displayName: accountsTable.displayName,
+				role: accountsTable.role,
+			})
+			.from(accountsTable)
+			.all();
 	}
 
 	createAccount(username: string, displayName: string, role: UserRole, password: string): void {
-		const accounts = this.loadAccounts();
-		if (accounts.find((a) => a.username === username)) {
-			throw new Error(`User '${username}' already exists`);
-		}
+		const existing = this.db
+			.select()
+			.from(accountsTable)
+			.where(eq(accountsTable.username, username))
+			.get();
+		if (existing) throw new Error(`User '${username}' already exists`);
+
 		const salt = crypto.randomBytes(16).toString("hex");
-		accounts.push({
+		this.db.insert(accountsTable).values({
 			username,
 			displayName,
 			role,
 			passwordHash: this.hashPassword(password, salt),
 			salt,
-		});
-		fs.writeFileSync(this.accountsPath, JSON.stringify(accounts, null, 2));
+		}).run();
 	}
 
 	updateAccount(
 		username: string,
 		updates: { displayName?: string; role?: UserRole; password?: string },
 	): void {
-		const accounts = this.loadAccounts();
-		const account = accounts.find((a) => a.username === username);
+		const account = this.db
+			.select()
+			.from(accountsTable)
+			.where(eq(accountsTable.username, username))
+			.get();
 		if (!account) throw new Error(`User '${username}' not found`);
-		if (updates.displayName !== undefined) account.displayName = updates.displayName;
-		if (updates.role !== undefined) account.role = updates.role;
+
+		const values: { displayName?: string; role?: string; salt?: string; passwordHash?: string } = {};
+		if (updates.displayName !== undefined) values.displayName = updates.displayName;
+		if (updates.role !== undefined) values.role = updates.role;
 		if (updates.password) {
-			account.salt = crypto.randomBytes(16).toString("hex");
-			account.passwordHash = this.hashPassword(updates.password, account.salt);
+			values.salt = crypto.randomBytes(16).toString("hex");
+			values.passwordHash = this.hashPassword(updates.password, values.salt);
 		}
-		fs.writeFileSync(this.accountsPath, JSON.stringify(accounts, null, 2));
+		if (Object.keys(values).length > 0) {
+			this.db.update(accountsTable).set(values).where(eq(accountsTable.username, username)).run();
+		}
 	}
 
 	deleteAccount(username: string): void {
-		const accounts = this.loadAccounts();
-		const index = accounts.findIndex((a) => a.username === username);
-		if (index === -1) throw new Error(`User '${username}' not found`);
-		accounts.splice(index, 1);
-		fs.writeFileSync(this.accountsPath, JSON.stringify(accounts, null, 2));
-		for (const [token, session] of this.sessions) {
-			if (session.username === username) this.sessions.delete(token);
+		const account = this.db
+			.select()
+			.from(accountsTable)
+			.where(eq(accountsTable.username, username))
+			.get();
+		if (!account) throw new Error(`User '${username}' not found`);
+
+		for (const [token, session] of this.sessionCache) {
+			if (session.username === username) this.sessionCache.delete(token);
 		}
-		this.saveSessions();
+		// ON DELETE CASCADE in the schema removes the account's sessions from the DB
+		this.db.delete(accountsTable).where(eq(accountsTable.username, username)).run();
 	}
 
 	parseCookie(cookieHeader: string | undefined, name: string): string | undefined {

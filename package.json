@@ -16,7 +16,8 @@
 		"format:check": "prettier --check .",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"client:config": "bash scripts/client-config.sh"
 	},
 	"author": "Dalibor Peňas",
 	"license": "MIT",
