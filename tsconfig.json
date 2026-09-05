@@ -20,6 +20,7 @@
 		"js/electron.ts",
 		"js/__tests__",
 		"js/testUtils",
+		"js/db",
 		"modules/**/*.ts",
 		"types/**/*"
 	],

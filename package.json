@@ -13,11 +13,16 @@
 		"server": "node dist/js/index.js",
 		"mirrorClient": "node_modules/.bin/electron dist/js/electron.js",
 		"format": "prettier --write .",
-		"format:check": "prettier --check ."
+		"format:check": "prettier --check .",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio"
 	},
 	"author": "Dalibor Peňas",
 	"license": "MIT",
 	"dependencies": {
+		"better-sqlite3": "^13.0.3",
+		"drizzle-orm": "^0.45.2",
 		"electron": "^31.3.1",
 		"envsub": "^4.1.0",
 		"express": "^4.19.2",
@@ -29,11 +34,13 @@
 		"socket.io-client": "^4.8.3"
 	},
 	"devDependencies": {
+		"@types/better-sqlite3": "^9.6.0",
 		"@types/express": "^5.0.6",
 		"@types/jest": "^30.0.0",
 		"@types/lodash": "^4.17.24",
 		"@types/node": "^25.9.1",
 		"@types/supertest": "^7.2.1",
+		"drizzle-kit": "^0.31.10",
 		"esbuild": "^0.28.0",
 		"jest": "^30.5.0",
 		"jest-environment-jsdom": "^30.5.1",
